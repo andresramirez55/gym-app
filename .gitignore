@@ -1,0 +1,45 @@
+# Environment variables
+.env
+.env.local
+
+# Go build artifacts
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+/bin/
+/dist/
+
+# Go test coverage
+*.out
+*.test
+coverage.txt
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Mobile (Expo/React Native)
+mobile/node_modules/
+mobile/.expo/
+mobile/.expo-shared/
+mobile/dist/
+mobile/npm-debug.*
+mobile/yarn-error.*
+mobile/yarn.lock
+
+# Dependencies
+node_modules/
+vendor/
+
+# Logs
+*.log
+logs/

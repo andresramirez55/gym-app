@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(go get:*)",
+      "Bash(npx create-expo-app@latest mobile --template blank-typescript)",
+      "Bash(npm install:*)",
+      "Bash(test:*)",
+      "Bash(psql:*)",
+      "Bash(docker:*)",
+      "Bash(npm start)",
+      "Bash(lsof:*)",
+      "Bash(npx expo start:*)",
+      "Bash(killall:*)",
+      "Bash(.gitignore:*)",
+      "Bash(git add:*)"
+    ]
+  }
+}
