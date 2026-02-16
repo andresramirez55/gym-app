@@ -36,13 +36,12 @@ func Load() (*Config, error) {
 			SSLMode:  getEnv("DB_SSL_MODE", "disable"),
 		},
 		ClaudeAPI: ClaudeAPIConfig{
-			APIKey: os.Getenv("CLAUDE_API_KEY"),
+			APIKey: os.Getenv("CLAUDE_API_KEY"), // Opcional - solo necesario si usas AI service
 		},
 	}
 
-	if config.ClaudeAPI.APIKey == "" {
-		return nil, fmt.Errorf("CLAUDE_API_KEY environment variable is required")
-	}
+	// CLAUDE_API_KEY es opcional ahora que usamos templates
+	// Solo se necesita si decides usar el AI service en el futuro
 
 	return config, nil
 }
