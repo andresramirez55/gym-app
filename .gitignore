@@ -10,6 +10,7 @@
 *.dylib
 /bin/
 /dist/
+server
 
 # Go test coverage
 *.out

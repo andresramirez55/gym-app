@@ -23,7 +23,7 @@ func NewRoutineServiceWithTemplates(routineRepo repository.RoutineRepository, te
 
 func (s *routineServiceWithTemplates) GenerateRoutineForUser(ctx context.Context, req *dto.GenerateRoutineRequest) (*domain.Routine, error) {
 	// Obtener template aleatorio según objetivo y frecuencia
-	template, err := s.templateRepo.GetRandomTemplate(ctx, req.Goal, req.Frequency)
+	template, err := s.templateRepo.GetRandomTemplate(ctx, string(req.Goal), int(req.Frequency))
 	if err != nil {
 		return nil, fmt.Errorf("no template found for goal=%s frequency=%d: %w", req.Goal, req.Frequency, err)
 	}
@@ -77,7 +77,7 @@ func (s *routineServiceWithTemplates) GenerateRoutineForUser(ctx context.Context
 				RoutineDayID: day.ID,
 				Name:         templateEx.Name,
 				Sets:         templateEx.Sets,
-				Reps:         templateEx.Reps,
+				Reps:         fmt.Sprintf("%d", templateEx.Reps),
 				RestSeconds:  templateEx.RestSeconds,
 				Order:        templateEx.Order,
 				Notes:        templateEx.Notes,
