@@ -35,6 +35,17 @@ func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *UserHandler) GetUser(w http.ResponseWriter, r *http.Request) {
+	// Support lookup by email
+	if email := r.URL.Query().Get("email"); email != "" {
+		user, err := h.userService.GetUserByEmail(r.Context(), email)
+		if err != nil {
+			respondError(w, http.StatusNotFound, "User not found")
+			return
+		}
+		respondJSON(w, http.StatusOK, h.toUserResponse(user))
+		return
+	}
+
 	idStr := r.URL.Query().Get("id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {

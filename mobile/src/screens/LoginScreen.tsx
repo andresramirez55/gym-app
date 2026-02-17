@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { userApi } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
+import { API_BASE_URL, USE_MOCK_API } from '../config/environment';
 
 const GOALS = [
   { value: 'gain_muscle', label: 'Ganar Músculo' },
@@ -37,6 +38,11 @@ export default function LoginScreen() {
       return;
     }
 
+    console.log('=== REGISTRO DE USUARIO ===');
+    console.log('API URL:', API_BASE_URL);
+    console.log('Usando Mock API:', USE_MOCK_API);
+    console.log('Datos:', { name, email, goal, frequency });
+
     setLoading(true);
     try {
       const user = await userApi.create({
@@ -45,11 +51,38 @@ export default function LoginScreen() {
         goal,
         frequency,
       });
+      console.log('Usuario creado exitosamente:', user);
       // Guarda automáticamente la sesión
       await signIn(user.id);
-    } catch (error) {
-      Alert.alert('Error', 'No se pudo crear el usuario. Verifica tu conexión.');
-      console.error(error);
+    } catch (error: any) {
+      console.error('=== ERROR AL CREAR USUARIO ===');
+      console.error('Error completo:', error);
+      console.error('Error response data:', error?.response?.data);
+      console.error('Error response status:', error?.response?.status);
+
+      const serverError = error?.response?.data?.error || '';
+
+      // Si el email ya existe, intentar recuperar la cuenta
+      if (serverError.includes('already exists') || error?.response?.status === 409) {
+        console.log('Email ya existe, intentando recuperar cuenta...');
+        try {
+          const existingUser = await userApi.getByEmail(email);
+          console.log('Usuario existente encontrado:', existingUser);
+          await signIn(existingUser.id);
+          return; // Login exitoso, no mostrar error
+        } catch (lookupError) {
+          console.error('Error buscando usuario existente:', lookupError);
+        }
+      }
+
+      let errorMessage = 'No se pudo crear el usuario. Verifica tu conexión.';
+      if (serverError) {
+        errorMessage += `\n\nDetalle: ${serverError}`;
+      } else if (error?.message) {
+        errorMessage += `\n\nDetalle: ${error.message}`;
+      }
+
+      Alert.alert('Error', errorMessage);
     } finally {
       setLoading(false);
     }

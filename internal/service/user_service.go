@@ -12,6 +12,7 @@ import (
 type UserService interface {
 	CreateUser(ctx context.Context, req *dto.CreateUserRequest) (*domain.User, error)
 	GetUserByID(ctx context.Context, id int64) (*domain.User, error)
+	GetUserByEmail(ctx context.Context, email string) (*domain.User, error)
 	UpdateUser(ctx context.Context, id int64, req *dto.UpdateUserRequest) (*domain.User, error)
 	DeleteUser(ctx context.Context, id int64) error
 }
@@ -46,6 +47,14 @@ func (s *userService) CreateUser(ctx context.Context, req *dto.CreateUserRequest
 
 func (s *userService) GetUserByID(ctx context.Context, id int64) (*domain.User, error) {
 	user, err := s.userRepo.GetByID(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("user not found: %w", err)
+	}
+	return user, nil
+}
+
+func (s *userService) GetUserByEmail(ctx context.Context, email string) (*domain.User, error) {
+	user, err := s.userRepo.GetByEmail(ctx, email)
 	if err != nil {
 		return nil, fmt.Errorf("user not found: %w", err)
 	}

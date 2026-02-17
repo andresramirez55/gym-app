@@ -17,12 +17,56 @@ import {
 } from './mockApi';
 import { API_BASE_URL, USE_MOCK_API } from '../config/environment';
 
+console.log('🔧 API Configuration loaded:');
+console.log('  API_BASE_URL:', API_BASE_URL);
+console.log('  USE_MOCK_API:', USE_MOCK_API);
+
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
+  timeout: 10000, // 10 seconds timeout
 });
+
+// Request interceptor for debugging
+api.interceptors.request.use(
+  (config) => {
+    console.log('📤 API Request:', {
+      method: config.method?.toUpperCase(),
+      url: config.url,
+      baseURL: config.baseURL,
+      fullURL: `${config.baseURL}${config.url}`,
+      data: config.data,
+    });
+    return config;
+  },
+  (error) => {
+    console.error('❌ Request Error:', error);
+    return Promise.reject(error);
+  }
+);
+
+// Response interceptor for debugging
+api.interceptors.response.use(
+  (response) => {
+    console.log('✅ API Response:', {
+      status: response.status,
+      url: response.config.url,
+      data: response.data,
+    });
+    return response;
+  },
+  (error) => {
+    console.error('❌ API Error Response:', {
+      message: error.message,
+      status: error.response?.status,
+      data: error.response?.data,
+      url: error.config?.url,
+    });
+    return Promise.reject(error);
+  }
+);
 
 // User API
 export const userApi = {
@@ -35,6 +79,12 @@ export const userApi = {
   get: async (id: number): Promise<User> => {
     if (USE_MOCK_API) return mockUserApi.get(id);
     const response = await api.get<User>(`/api/users?id=${id}`);
+    return response.data;
+  },
+
+  getByEmail: async (email: string): Promise<User> => {
+    if (USE_MOCK_API) return mockUserApi.get(1);
+    const response = await api.get<User>(`/api/users?email=${encodeURIComponent(email)}`);
     return response.data;
   },
 
