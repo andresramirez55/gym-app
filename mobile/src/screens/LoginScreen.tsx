@@ -23,33 +23,13 @@ const FREQUENCIES = [3, 4, 5];
 
 export default function LoginScreen() {
   const { signIn } = useAuth();
-  const [isRegister, setIsRegister] = useState(false);
   const [loading, setLoading] = useState(false);
-
-  // Login fields
-  const [userId, setUserId] = useState('');
 
   // Register fields
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [goal, setGoal] = useState('gain_muscle');
   const [frequency, setFrequency] = useState(5);
-
-  const handleLogin = async () => {
-    if (!userId) {
-      Alert.alert('Error', 'Por favor ingresa tu ID de usuario');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      await signIn(parseInt(userId, 10));
-    } catch (error) {
-      Alert.alert('Error', 'Usuario no encontrado');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleRegister = async () => {
     if (!name || !email) {
@@ -65,10 +45,11 @@ export default function LoginScreen() {
         goal,
         frequency,
       });
+      // Guarda automáticamente la sesión
       await signIn(user.id);
-      Alert.alert('Éxito', '¡Usuario creado exitosamente!');
     } catch (error) {
-      Alert.alert('Error', 'No se pudo crear el usuario');
+      Alert.alert('Error', 'No se pudo crear el usuario. Verifica tu conexión.');
+      console.error(error);
     } finally {
       setLoading(false);
     }
@@ -85,31 +66,9 @@ export default function LoginScreen() {
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>💪 Gym App</Text>
-      <Text style={styles.subtitle}>Tu entrenador personal con IA</Text>
+      <Text style={styles.subtitle}>Crea tu cuenta para empezar</Text>
 
-      {!isRegister ? (
-        // Login Form
-        <View style={styles.form}>
-          <Text style={styles.label}>ID de Usuario</Text>
-          <TextInput
-            style={styles.input}
-            value={userId}
-            onChangeText={setUserId}
-            placeholder="Ingresa tu ID"
-            keyboardType="numeric"
-          />
-
-          <TouchableOpacity style={styles.button} onPress={handleLogin}>
-            <Text style={styles.buttonText}>Iniciar Sesión</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity onPress={() => setIsRegister(true)}>
-            <Text style={styles.linkText}>¿No tienes cuenta? Regístrate</Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        // Register Form
-        <View style={styles.form}>
+      <View style={styles.form}>
           <Text style={styles.label}>Nombre</Text>
           <TextInput
             style={styles.input}
@@ -159,14 +118,13 @@ export default function LoginScreen() {
           </View>
 
           <TouchableOpacity style={styles.button} onPress={handleRegister}>
-            <Text style={styles.buttonText}>Registrarse</Text>
+            <Text style={styles.buttonText}>Comenzar</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={() => setIsRegister(false)}>
-            <Text style={styles.linkText}>¿Ya tienes cuenta? Inicia sesión</Text>
-          </TouchableOpacity>
+          <Text style={styles.infoText}>
+            Tu sesión se guardará automáticamente. La próxima vez que abras la app, estarás listo para entrenar.
+          </Text>
         </View>
-      )}
     </ScrollView>
   );
 }
@@ -250,5 +208,12 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 16,
     fontSize: 14,
+  },
+  infoText: {
+    color: '#666',
+    textAlign: 'center',
+    marginTop: 20,
+    fontSize: 12,
+    lineHeight: 18,
   },
 });

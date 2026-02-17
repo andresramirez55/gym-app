@@ -44,7 +44,7 @@ export default function HomeScreen({ navigation }: any) {
         frequency: user!.frequency,
       });
       setRoutine(newRoutine);
-      Alert.alert('¡Éxito!', 'Rutina generada con IA');
+      Alert.alert('¡Éxito!', 'Rutina generada y lista para usar');
     } catch (error) {
       Alert.alert('Error', 'No se pudo generar la rutina');
     } finally {
@@ -73,13 +73,6 @@ export default function HomeScreen({ navigation }: any) {
 
   return (
     <ScrollView style={styles.container}>
-      {/* Banner de modo prueba */}
-      <View style={styles.banner}>
-        <Text style={styles.bannerText}>
-          🧪 MODO PRUEBA - Usando datos de ejemplo
-        </Text>
-      </View>
-
       <View style={styles.header}>
         <View>
           <Text style={styles.greeting}>Hola, {user?.name}! 👋</Text>
