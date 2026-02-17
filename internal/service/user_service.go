@@ -26,9 +26,10 @@ func NewUserService(userRepo repository.UserRepository) UserService {
 }
 
 func (s *userService) CreateUser(ctx context.Context, req *dto.CreateUserRequest) (*domain.User, error) {
+	// If user already exists, return them (login behavior)
 	existing, err := s.userRepo.GetByEmail(ctx, req.Email)
 	if err == nil && existing != nil {
-		return nil, fmt.Errorf("user with email %s already exists", req.Email)
+		return existing, nil
 	}
 
 	user := &domain.User{

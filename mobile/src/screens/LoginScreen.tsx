@@ -11,7 +11,6 @@ import {
 } from 'react-native';
 import { userApi } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
-import { API_BASE_URL, USE_MOCK_API } from '../config/environment';
 
 const GOALS = [
   { value: 'gain_muscle', label: 'Ganar Músculo' },
@@ -38,39 +37,12 @@ export default function LoginScreen() {
       return;
     }
 
-    console.log('=== REGISTRO DE USUARIO ===');
-    console.log('API URL:', API_BASE_URL);
-    console.log('Usando Mock API:', USE_MOCK_API);
-    console.log('Datos:', { name, email, goal, frequency });
-
     setLoading(true);
     try {
-      const user = await userApi.create({
-        name,
-        email,
-        goal,
-        frequency,
-      });
-      console.log('Usuario creado exitosamente:', user);
-      // Guarda automáticamente la sesión
+      const user = await userApi.create({ name, email, goal, frequency });
       await signIn(user.id);
     } catch (error: any) {
-      const serverError = error?.response?.data?.error || '';
-      const status = error?.response?.status;
-
-      // Si el email ya existe, recuperar cuenta silenciosamente
-      if (serverError.includes('already exists') || status === 409) {
-        try {
-          const existingUser = await userApi.getByEmail(email);
-          await signIn(existingUser.id);
-          return;
-        } catch (lookupError) {
-          console.warn('No se pudo recuperar la cuenta:', lookupError);
-        }
-      }
-
-      console.error('Error al crear usuario:', serverError || error?.message);
-      Alert.alert('Error', 'No se pudo crear el usuario. Verifica tu conexión.');
+      Alert.alert('Error', 'No se pudo conectar. Verifica tu conexión a internet.');
     } finally {
       setLoading(false);
     }
