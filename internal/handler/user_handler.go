@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/andresramirez/gym-app/internal/domain"
 	"github.com/andresramirez/gym-app/internal/dto"
@@ -27,7 +28,11 @@ func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 
 	user, err := h.userService.CreateUser(r.Context(), &req)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		if strings.Contains(err.Error(), "already exists") {
+			respondError(w, http.StatusConflict, err.Error())
+		} else {
+			respondError(w, http.StatusInternalServerError, err.Error())
+		}
 		return
 	}
 

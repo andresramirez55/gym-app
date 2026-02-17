@@ -55,34 +55,22 @@ export default function LoginScreen() {
       // Guarda automáticamente la sesión
       await signIn(user.id);
     } catch (error: any) {
-      console.error('=== ERROR AL CREAR USUARIO ===');
-      console.error('Error completo:', error);
-      console.error('Error response data:', error?.response?.data);
-      console.error('Error response status:', error?.response?.status);
-
       const serverError = error?.response?.data?.error || '';
+      const status = error?.response?.status;
 
-      // Si el email ya existe, intentar recuperar la cuenta
-      if (serverError.includes('already exists') || error?.response?.status === 409) {
-        console.log('Email ya existe, intentando recuperar cuenta...');
+      // Si el email ya existe, recuperar cuenta silenciosamente
+      if (serverError.includes('already exists') || status === 409) {
         try {
           const existingUser = await userApi.getByEmail(email);
-          console.log('Usuario existente encontrado:', existingUser);
           await signIn(existingUser.id);
-          return; // Login exitoso, no mostrar error
+          return;
         } catch (lookupError) {
-          console.error('Error buscando usuario existente:', lookupError);
+          console.warn('No se pudo recuperar la cuenta:', lookupError);
         }
       }
 
-      let errorMessage = 'No se pudo crear el usuario. Verifica tu conexión.';
-      if (serverError) {
-        errorMessage += `\n\nDetalle: ${serverError}`;
-      } else if (error?.message) {
-        errorMessage += `\n\nDetalle: ${error.message}`;
-      }
-
-      Alert.alert('Error', errorMessage);
+      console.error('Error al crear usuario:', serverError || error?.message);
+      Alert.alert('Error', 'No se pudo crear el usuario. Verifica tu conexión.');
     } finally {
       setLoading(false);
     }
