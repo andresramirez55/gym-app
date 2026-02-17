@@ -3,7 +3,7 @@
 // IMPORTANTE: Cambia esto según el entorno
 type Environment = 'development' | 'production';
 
-const ENV: Environment = 'development'; // Cambiar a 'production' cuando publiques
+const ENV: Environment = 'production'; // Conectado a Railway
 
 const config = {
   development: {
@@ -11,8 +11,7 @@ const config = {
     USE_MOCK_API: true,
   },
   production: {
-    // CAMBIA ESTA URL cuando hagas deploy en Railway
-    API_URL: 'https://gym-app-production.up.railway.app',
+    API_URL: 'https://gym-app-production-4dc4.up.railway.app',
     USE_MOCK_API: false,
   },
 };
