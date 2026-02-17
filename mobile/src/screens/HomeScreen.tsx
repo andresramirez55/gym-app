@@ -100,6 +100,28 @@ export default function HomeScreen({ navigation }: any) {
           <View style={styles.routineHeader}>
             <Text style={styles.routineName}>{routine.name}</Text>
             <Text style={styles.routineDescription}>{routine.description}</Text>
+
+            {/* Routine progress */}
+            <View style={styles.progressCard}>
+              <View style={styles.progressRow}>
+                <Text style={styles.progressLabel}>
+                  Semana {routine.week_number} de {routine.duration_weeks}
+                </Text>
+                <Text style={styles.progressDays}>
+                  {routine.days_remaining > 0
+                    ? `${routine.days_remaining}d para el cambio`
+                    : 'Rotando rutina...'}
+                </Text>
+              </View>
+              <View style={styles.progressBarBg}>
+                <View
+                  style={[
+                    styles.progressBarFill,
+                    { width: `${Math.round((routine.week_number / routine.duration_weeks) * 100)}%` as any },
+                  ]}
+                />
+              </View>
+            </View>
           </View>
 
           <Text style={styles.sectionTitle}>Días de Entrenamiento</Text>
@@ -205,6 +227,39 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#666',
     lineHeight: 22,
+    marginBottom: 12,
+  },
+  progressCard: {
+    backgroundColor: '#F0F4FF',
+    borderRadius: 10,
+    padding: 12,
+    marginTop: 4,
+  },
+  progressRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  progressLabel: {
+    fontSize: 13,
+    fontWeight: 'bold',
+    color: '#007AFF',
+  },
+  progressDays: {
+    fontSize: 12,
+    color: '#666',
+  },
+  progressBarBg: {
+    height: 6,
+    backgroundColor: '#D1D9FF',
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  progressBarFill: {
+    height: 6,
+    backgroundColor: '#007AFF',
+    borderRadius: 3,
   },
   sectionTitle: {
     fontSize: 18,

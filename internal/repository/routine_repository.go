@@ -27,14 +27,17 @@ func NewRoutineRepository(db *sql.DB) RoutineRepository {
 }
 
 func (r *routineRepository) Create(ctx context.Context, routine *domain.Routine) error {
+	if routine.DurationWeeks == 0 {
+		routine.DurationWeeks = 3
+	}
 	query := `
-		INSERT INTO routines (user_id, name, description, goal, frequency, is_active, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
+		INSERT INTO routines (user_id, name, description, goal, frequency, is_active, duration_weeks, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
 		RETURNING id, created_at, updated_at
 	`
 	return r.db.QueryRowContext(ctx, query,
 		routine.UserID, routine.Name, routine.Description, routine.Goal,
-		routine.Frequency, routine.IsActive,
+		routine.Frequency, routine.IsActive, routine.DurationWeeks,
 	).Scan(&routine.ID, &routine.CreatedAt, &routine.UpdatedAt)
 }
 
@@ -64,13 +67,13 @@ func (r *routineRepository) CreateExercise(ctx context.Context, exercise *domain
 func (r *routineRepository) GetByID(ctx context.Context, id int64) (*domain.Routine, error) {
 	routine := &domain.Routine{}
 	query := `
-		SELECT id, user_id, name, description, goal, frequency, is_active, created_at, updated_at
+		SELECT id, user_id, name, description, goal, frequency, is_active, duration_weeks, created_at, updated_at
 		FROM routines
 		WHERE id = $1
 	`
 	err := r.db.QueryRowContext(ctx, query, id).Scan(
 		&routine.ID, &routine.UserID, &routine.Name, &routine.Description,
-		&routine.Goal, &routine.Frequency, &routine.IsActive,
+		&routine.Goal, &routine.Frequency, &routine.IsActive, &routine.DurationWeeks,
 		&routine.CreatedAt, &routine.UpdatedAt,
 	)
 	if err != nil {
@@ -82,7 +85,7 @@ func (r *routineRepository) GetByID(ctx context.Context, id int64) (*domain.Rout
 func (r *routineRepository) GetActiveByUserID(ctx context.Context, userID int64) (*domain.Routine, error) {
 	routine := &domain.Routine{}
 	query := `
-		SELECT id, user_id, name, description, goal, frequency, is_active, created_at, updated_at
+		SELECT id, user_id, name, description, goal, frequency, is_active, duration_weeks, created_at, updated_at
 		FROM routines
 		WHERE user_id = $1 AND is_active = true
 		ORDER BY created_at DESC
@@ -90,7 +93,7 @@ func (r *routineRepository) GetActiveByUserID(ctx context.Context, userID int64)
 	`
 	err := r.db.QueryRowContext(ctx, query, userID).Scan(
 		&routine.ID, &routine.UserID, &routine.Name, &routine.Description,
-		&routine.Goal, &routine.Frequency, &routine.IsActive,
+		&routine.Goal, &routine.Frequency, &routine.IsActive, &routine.DurationWeeks,
 		&routine.CreatedAt, &routine.UpdatedAt,
 	)
 	if err != nil {

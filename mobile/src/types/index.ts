@@ -43,6 +43,9 @@ export interface Routine {
   goal: string;
   frequency: number;
   is_active: boolean;
+  duration_weeks: number;
+  week_number: number;
+  days_remaining: number;
   days: RoutineDay[];
   created_at: string;
 }

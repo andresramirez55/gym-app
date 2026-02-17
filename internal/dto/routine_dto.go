@@ -9,15 +9,18 @@ type GenerateRoutineRequest struct {
 }
 
 type RoutineResponse struct {
-	ID          int64              `json:"id"`
-	UserID      int64              `json:"user_id"`
-	Name        string             `json:"name"`
-	Description string             `json:"description"`
-	Goal        domain.FitnessGoal `json:"goal"`
-	Frequency   domain.Frequency   `json:"frequency"`
-	IsActive    bool               `json:"is_active"`
-	Days        []RoutineDayDTO    `json:"days"`
-	CreatedAt   string             `json:"created_at"`
+	ID            int64              `json:"id"`
+	UserID        int64              `json:"user_id"`
+	Name          string             `json:"name"`
+	Description   string             `json:"description"`
+	Goal          domain.FitnessGoal `json:"goal"`
+	Frequency     domain.Frequency   `json:"frequency"`
+	IsActive      bool               `json:"is_active"`
+	DurationWeeks int                `json:"duration_weeks"`
+	WeekNumber    int                `json:"week_number"`
+	DaysRemaining int                `json:"days_remaining"`
+	Days          []RoutineDayDTO    `json:"days"`
+	CreatedAt     string             `json:"created_at"`
 }
 
 type RoutineDayDTO struct {

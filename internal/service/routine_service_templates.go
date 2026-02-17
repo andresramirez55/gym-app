@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/andresramirez/gym-app/internal/domain"
 	"github.com/andresramirez/gym-app/internal/dto"
@@ -123,6 +124,33 @@ func (s *routineServiceWithTemplates) GetActiveRoutineByUserID(ctx context.Conte
 	if err != nil {
 		return nil, fmt.Errorf("no active routine found: %w", err)
 	}
+
+	// Check if routine has expired and needs rotation
+	durationDays := routine.DurationWeeks * 7
+	daysElapsed := int(time.Since(routine.CreatedAt).Hours() / 24)
+	daysRemaining := durationDays - daysElapsed
+
+	if daysRemaining <= 0 {
+		// Rotate: generate a new routine with a different template
+		newRoutine, rotateErr := s.GenerateRoutineForUser(ctx, &dto.GenerateRoutineRequest{
+			UserID:    userID,
+			Goal:      routine.Goal,
+			Frequency: routine.Frequency,
+		})
+		if rotateErr == nil {
+			return newRoutine, nil
+		}
+		// If rotation fails, keep current routine
+		daysRemaining = 0
+	}
+
+	// Calculate week info
+	weekNumber := (daysElapsed / 7) + 1
+	if weekNumber > routine.DurationWeeks {
+		weekNumber = routine.DurationWeeks
+	}
+	routine.WeekNumber = weekNumber
+	routine.DaysRemaining = daysRemaining
 
 	// Load days
 	days, err := s.routineRepo.GetDaysByRoutineID(ctx, routine.ID)

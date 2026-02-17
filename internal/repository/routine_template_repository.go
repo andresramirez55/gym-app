@@ -33,6 +33,7 @@ type RoutineTemplateExercise struct {
 
 type RoutineTemplateRepository interface {
 	GetRandomTemplate(ctx context.Context, goal string, frequency int) (*RoutineTemplate, error)
+	GetRandomTemplateExcluding(ctx context.Context, goal string, frequency int, excludeName string) (*RoutineTemplate, error)
 	GetTemplateDays(ctx context.Context, templateID int64) ([]RoutineTemplateDay, error)
 	GetTemplateExercises(ctx context.Context, templateDayID int64) ([]RoutineTemplateExercise, error)
 }
@@ -67,6 +68,25 @@ func (r *routineTemplateRepository) GetRandomTemplate(ctx context.Context, goal 
 		return nil, err
 	}
 
+	return template, nil
+}
+
+func (r *routineTemplateRepository) GetRandomTemplateExcluding(ctx context.Context, goal string, frequency int, excludeName string) (*RoutineTemplate, error) {
+	// Prefer a different template; if none available, fall back to any
+	query := `
+		SELECT id, name, description, goal, frequency
+		FROM routine_templates
+		WHERE goal = $1 AND frequency = $2
+		ORDER BY CASE WHEN name = $3 THEN 1 ELSE 0 END, RANDOM()
+		LIMIT 1
+	`
+	template := &RoutineTemplate{}
+	err := r.db.QueryRowContext(ctx, query, goal, frequency, excludeName).Scan(
+		&template.ID, &template.Name, &template.Description, &template.Goal, &template.Frequency,
+	)
+	if err != nil {
+		return nil, err
+	}
 	return template, nil
 }
 

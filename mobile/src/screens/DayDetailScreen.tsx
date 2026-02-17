@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
+  Vibration,
 } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
 import { workoutApi } from '../services/api';
@@ -22,6 +23,33 @@ export default function DayDetailScreen({ route, navigation }: Props) {
   const { user } = useAuth();
   const [startTime] = useState(new Date());
   const [sets, setSets] = useState<{ [exerciseId: number]: SetLog[] }>({});
+  const [restTimer, setRestTimer] = useState<{ exerciseId: number; timeLeft: number } | null>(null);
+
+  useEffect(() => {
+    if (!restTimer) return;
+    if (restTimer.timeLeft <= 0) {
+      Vibration.vibrate([0, 400, 200, 400]);
+      Alert.alert('¡Listo!', '¡Tiempo de descanso terminado!');
+      setRestTimer(null);
+      return;
+    }
+    const interval = setInterval(() => {
+      setRestTimer(prev => prev ? { ...prev, timeLeft: prev.timeLeft - 1 } : null);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [restTimer]);
+
+  const startRest = (exerciseId: number, seconds: number) => {
+    setRestTimer({ exerciseId, timeLeft: seconds });
+  };
+
+  const cancelRest = () => setRestTimer(null);
+
+  const formatTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return m > 0 ? `${m}:${s.toString().padStart(2, '0')}` : `${s}s`;
+  };
 
   const addSet = (exerciseId: number) => {
     const exerciseSets = sets[exerciseId] || [];
@@ -30,30 +58,18 @@ export default function DayDetailScreen({ route, navigation }: Props) {
       weight: 0,
       reps: 0,
     };
-    setSets({
-      ...sets,
-      [exerciseId]: [...exerciseSets, newSet],
-    });
+    setSets({ ...sets, [exerciseId]: [...exerciseSets, newSet] });
   };
 
   const updateSet = (exerciseId: number, setIndex: number, field: 'weight' | 'reps', value: string) => {
     const exerciseSets = [...(sets[exerciseId] || [])];
-    exerciseSets[setIndex] = {
-      ...exerciseSets[setIndex],
-      [field]: parseFloat(value) || 0,
-    };
-    setSets({
-      ...sets,
-      [exerciseId]: exerciseSets,
-    });
+    exerciseSets[setIndex] = { ...exerciseSets[setIndex], [field]: parseFloat(value) || 0 };
+    setSets({ ...sets, [exerciseId]: exerciseSets });
   };
 
   const removeSet = (exerciseId: number, setIndex: number) => {
     const exerciseSets = sets[exerciseId].filter((_, i) => i !== setIndex);
-    setSets({
-      ...sets,
-      [exerciseId]: exerciseSets,
-    });
+    setSets({ ...sets, [exerciseId]: exerciseSets });
   };
 
   const handleFinishWorkout = async () => {
@@ -97,6 +113,7 @@ export default function DayDetailScreen({ route, navigation }: Props) {
 
       {day.exercises.map((exercise) => {
         const exerciseSets = sets[exercise.id] || [];
+        const isResting = restTimer?.exerciseId === exercise.id;
 
         return (
           <View key={exercise.id} style={styles.exerciseCard}>
@@ -132,6 +149,28 @@ export default function DayDetailScreen({ route, navigation }: Props) {
             <TouchableOpacity style={styles.addButton} onPress={() => addSet(exercise.id)}>
               <Text style={styles.addButtonText}>+ Agregar Serie</Text>
             </TouchableOpacity>
+
+            {/* Rest Timer */}
+            {isResting ? (
+              <View style={styles.timerContainer}>
+                <View style={styles.timerCircle}>
+                  <Text style={styles.timerTime}>{formatTime(restTimer!.timeLeft)}</Text>
+                  <Text style={styles.timerLabel}>descansando</Text>
+                </View>
+                <TouchableOpacity style={styles.cancelTimerButton} onPress={cancelRest}>
+                  <Text style={styles.cancelTimerText}>Cancelar</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={styles.restButton}
+                onPress={() => startRest(exercise.id, exercise.rest_seconds)}
+              >
+                <Text style={styles.restButtonText}>
+                  ⏱  Iniciar descanso ({exercise.rest_seconds}s)
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
         );
       })}
@@ -218,6 +257,56 @@ const styles = StyleSheet.create({
     color: '#007AFF',
     fontSize: 14,
     fontWeight: 'bold',
+  },
+  restButton: {
+    backgroundColor: '#E8F4FD',
+    borderRadius: 8,
+    padding: 12,
+    alignItems: 'center',
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: '#007AFF',
+  },
+  restButtonText: {
+    color: '#007AFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  timerContainer: {
+    alignItems: 'center',
+    marginTop: 10,
+    paddingVertical: 12,
+    backgroundColor: '#FFF3CD',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#FF9500',
+  },
+  timerCircle: {
+    alignItems: 'center',
+  },
+  timerTime: {
+    fontSize: 42,
+    fontWeight: 'bold',
+    color: '#FF9500',
+  },
+  timerLabel: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 2,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  cancelTimerButton: {
+    marginTop: 10,
+    paddingVertical: 6,
+    paddingHorizontal: 20,
+    borderRadius: 20,
+    backgroundColor: '#FF9500',
+  },
+  cancelTimerText: {
+    color: 'white',
+    fontSize: 13,
+    fontWeight: '600',
   },
   finishButton: {
     backgroundColor: '#34C759',

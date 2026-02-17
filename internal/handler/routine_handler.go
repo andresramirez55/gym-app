@@ -93,14 +93,17 @@ func (h *RoutineHandler) toRoutineResponse(routine *domain.Routine) *dto.Routine
 	}
 
 	return &dto.RoutineResponse{
-		ID:          routine.ID,
-		UserID:      routine.UserID,
-		Name:        routine.Name,
-		Description: routine.Description,
-		Goal:        routine.Goal,
-		Frequency:   routine.Frequency,
-		IsActive:    routine.IsActive,
-		Days:        days,
-		CreatedAt:   routine.CreatedAt.Format("2006-01-02 15:04:05"),
+		ID:            routine.ID,
+		UserID:        routine.UserID,
+		Name:          routine.Name,
+		Description:   routine.Description,
+		Goal:          routine.Goal,
+		Frequency:     routine.Frequency,
+		IsActive:      routine.IsActive,
+		DurationWeeks: routine.DurationWeeks,
+		WeekNumber:    routine.WeekNumber,
+		DaysRemaining: routine.DaysRemaining,
+		Days:          days,
+		CreatedAt:     routine.CreatedAt.Format("2006-01-02 15:04:05"),
 	}
 }
