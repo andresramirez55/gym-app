@@ -14,7 +14,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../contexts/AuthContext';
 import { workoutApi } from '../services/api';
-import type { RoutineDay, SetLog } from '../types';
+import type { RoutineDay, SetLog, WorkoutLog } from '../types';
 
 interface Props {
   route: any;
@@ -30,10 +30,11 @@ export default function DayDetailScreen({ route, navigation }: Props) {
   const [sets, setSets] = useState<{ [exerciseId: number]: SetLog[] }>({});
   const [completedExercises, setCompletedExercises] = useState<Set<number>>(new Set());
   const [restTimer, setRestTimer] = useState<{ exerciseId: number; timeLeft: number } | null>(null);
+  const [lastSession, setLastSession] = useState<{ [exerciseName: string]: SetLog[] }>({});
 
   const storageKey = `workout_progress_${day.id}`;
 
-  // Restore in-progress workout on mount
+  // Restore in-progress workout on mount + load last session
   useEffect(() => {
     AsyncStorage.getItem(storageKey).then((saved) => {
       if (saved) {
@@ -46,6 +47,19 @@ export default function DayDetailScreen({ route, navigation }: Props) {
         } catch (_) {}
       }
     });
+
+    // Load last session data for each exercise
+    workoutApi.getHistory(user!.id, 10).then((history: WorkoutLog[]) => {
+      const map: { [exerciseName: string]: SetLog[] } = {};
+      for (const log of history) {
+        for (const exLog of log.exercise_logs) {
+          if (!map[exLog.exercise_name] && exLog.sets.length > 0) {
+            map[exLog.exercise_name] = exLog.sets;
+          }
+        }
+      }
+      setLastSession(map);
+    }).catch(() => {});
   }, []);
 
   // Auto-save whenever sets or completedExercises change
@@ -210,6 +224,13 @@ export default function DayDetailScreen({ route, navigation }: Props) {
                   <Text style={styles.exerciseMeta}>
                     {exercise.sets} × {exercise.reps} reps · {exercise.rest_seconds}s descanso
                   </Text>
+                  {lastSession[exercise.name] && (
+                    <Text style={styles.lastSessionText}>
+                      Última vez: {lastSession[exercise.name].map(s =>
+                        s.weight > 0 ? `${s.weight}kg×${s.reps}` : `${s.reps} reps`
+                      ).join(' · ')}
+                    </Text>
+                  )}
                 </View>
                 {isDone && (
                   <TouchableOpacity onPress={() => uncompleteExercise(exercise.id)} style={styles.editBtn}>
@@ -432,6 +453,13 @@ const styles = StyleSheet.create({
   exerciseMeta: {
     fontSize: 13,
     color: '#8E8E93',
+  },
+  lastSessionText: {
+    fontSize: 12,
+    color: PRIMARY,
+    marginTop: 3,
+    fontWeight: '500',
+    opacity: 0.75,
   },
   editBtn: {
     paddingHorizontal: 12,
