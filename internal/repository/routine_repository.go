@@ -128,7 +128,7 @@ func (r *routineRepository) GetDaysByRoutineID(ctx context.Context, routineID in
 
 func (r *routineRepository) GetExercisesByDayID(ctx context.Context, dayID int64) ([]domain.Exercise, error) {
 	query := `
-		SELECT id, routine_day_id, name, sets, reps, rest_seconds, "order", notes, created_at
+		SELECT id, routine_day_id, name, sets, reps, rest_seconds, "order", COALESCE(notes, ''), created_at
 		FROM exercises
 		WHERE routine_day_id = $1
 		ORDER BY "order"
