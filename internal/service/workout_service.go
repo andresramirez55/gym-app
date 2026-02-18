@@ -14,6 +14,8 @@ type WorkoutService interface {
 	LogWorkout(ctx context.Context, req *dto.LogWorkoutRequest) (*domain.WorkoutLog, error)
 	GetWorkoutHistory(ctx context.Context, userID int64, limit int) ([]domain.WorkoutLog, error)
 	GetWeightProgress(ctx context.Context, userID, exerciseID int64) (*dto.WeightProgressResponse, error)
+	DeleteWorkoutLog(ctx context.Context, id, userID int64) error
+	DeleteAllWorkoutLogs(ctx context.Context, userID int64) error
 }
 
 type workoutService struct {
@@ -138,4 +140,12 @@ func (s *workoutService) GetWeightProgress(ctx context.Context, userID, exercise
 		ExerciseID: exerciseID,
 		History:    points,
 	}, nil
+}
+
+func (s *workoutService) DeleteWorkoutLog(ctx context.Context, id, userID int64) error {
+	return s.workoutRepo.DeleteWorkoutLog(ctx, id, userID)
+}
+
+func (s *workoutService) DeleteAllWorkoutLogs(ctx context.Context, userID int64) error {
+	return s.workoutRepo.DeleteAllWorkoutLogs(ctx, userID)
 }

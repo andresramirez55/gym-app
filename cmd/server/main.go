@@ -105,9 +105,12 @@ func main() {
 	})
 
 	mux.HandleFunc("/api/workouts/history", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodGet {
+		switch r.Method {
+		case http.MethodGet:
 			workoutHandler.GetWorkoutHistory(w, r)
-		} else {
+		case http.MethodDelete:
+			workoutHandler.DeleteWorkout(w, r)
+		default:
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}
 	})

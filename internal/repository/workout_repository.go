@@ -15,6 +15,8 @@ type WorkoutRepository interface {
 	GetExerciseLogsByWorkoutID(ctx context.Context, workoutID int64) ([]domain.ExerciseLog, error)
 	GetSetLogsByExerciseLogID(ctx context.Context, exerciseLogID int64) ([]domain.SetLog, error)
 	GetWeightHistoryByExercise(ctx context.Context, userID, exerciseID int64) ([]domain.SetLog, error)
+	DeleteWorkoutLog(ctx context.Context, id, userID int64) error
+	DeleteAllWorkoutLogs(ctx context.Context, userID int64) error
 }
 
 type workoutRepository struct {
@@ -132,6 +134,48 @@ func (r *workoutRepository) GetSetLogsByExerciseLogID(ctx context.Context, exerc
 		logs = append(logs, log)
 	}
 	return logs, rows.Err()
+}
+
+func (r *workoutRepository) DeleteWorkoutLog(ctx context.Context, id, userID int64) error {
+	// Delete in order: set_logs → exercise_logs → workout_log
+	_, err := r.db.ExecContext(ctx, `
+		DELETE FROM set_logs
+		WHERE exercise_log_id IN (
+			SELECT id FROM exercise_logs WHERE workout_log_id = $1
+		)
+	`, id)
+	if err != nil {
+		return err
+	}
+	_, err = r.db.ExecContext(ctx, `DELETE FROM exercise_logs WHERE workout_log_id = $1`, id)
+	if err != nil {
+		return err
+	}
+	_, err = r.db.ExecContext(ctx, `DELETE FROM workout_logs WHERE id = $1 AND user_id = $2`, id, userID)
+	return err
+}
+
+func (r *workoutRepository) DeleteAllWorkoutLogs(ctx context.Context, userID int64) error {
+	_, err := r.db.ExecContext(ctx, `
+		DELETE FROM set_logs
+		WHERE exercise_log_id IN (
+			SELECT el.id FROM exercise_logs el
+			JOIN workout_logs wl ON wl.id = el.workout_log_id
+			WHERE wl.user_id = $1
+		)
+	`, userID)
+	if err != nil {
+		return err
+	}
+	_, err = r.db.ExecContext(ctx, `
+		DELETE FROM exercise_logs
+		WHERE workout_log_id IN (SELECT id FROM workout_logs WHERE user_id = $1)
+	`, userID)
+	if err != nil {
+		return err
+	}
+	_, err = r.db.ExecContext(ctx, `DELETE FROM workout_logs WHERE user_id = $1`, userID)
+	return err
 }
 
 func (r *workoutRepository) GetWeightHistoryByExercise(ctx context.Context, userID, exerciseID int64) ([]domain.SetLog, error) {

@@ -90,6 +90,37 @@ func (h *WorkoutHandler) GetWorkoutHistory(w http.ResponseWriter, r *http.Reques
 	respondJSON(w, http.StatusOK, responses)
 }
 
+func (h *WorkoutHandler) DeleteWorkout(w http.ResponseWriter, r *http.Request) {
+	userIDStr := r.URL.Query().Get("user_id")
+	userID, err := strconv.ParseInt(userIDStr, 10, 64)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "Invalid user ID")
+		return
+	}
+
+	idStr := r.URL.Query().Get("id")
+	if idStr == "" {
+		// Delete all
+		if err := h.workoutService.DeleteAllWorkoutLogs(r.Context(), userID); err != nil {
+			respondError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		respondJSON(w, http.StatusOK, map[string]string{"message": "all workouts deleted"})
+		return
+	}
+
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "Invalid workout ID")
+		return
+	}
+	if err := h.workoutService.DeleteWorkoutLog(r.Context(), id, userID); err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	respondJSON(w, http.StatusOK, map[string]string{"message": "workout deleted"})
+}
+
 func (h *WorkoutHandler) GetWeightProgress(w http.ResponseWriter, r *http.Request) {
 	userIDStr := r.URL.Query().Get("user_id")
 	userID, err := strconv.ParseInt(userIDStr, 10, 64)
