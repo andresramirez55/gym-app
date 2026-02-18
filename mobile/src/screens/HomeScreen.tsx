@@ -10,8 +10,8 @@ import {
   StatusBar,
 } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
-import { routineApi } from '../services/api';
-import type { Routine } from '../types';
+import { routineApi, workoutApi } from '../services/api';
+import type { Routine, WorkoutLog } from '../types';
 
 const PRIMARY = '#5E5CE6';
 
@@ -22,16 +22,55 @@ const GOAL_LABELS: Record<string, string> = {
   endurance: '🏃 Resistencia',
 };
 
+function getWeekStart(): Date {
+  const now = new Date();
+  const day = now.getDay(); // 0=Sun, 1=Mon, ...
+  const diff = (day === 0 ? -6 : 1 - day); // adjust to Monday
+  const monday = new Date(now);
+  monday.setDate(now.getDate() + diff);
+  monday.setHours(0, 0, 0, 0);
+  return monday;
+}
+
 export default function HomeScreen({ navigation }: any) {
   const { user, signOut } = useAuth();
   const [routine, setRoutine] = useState<Routine | null>(null);
   const [loading, setLoading] = useState(true);
+  const [weekStats, setWeekStats] = useState<{
+    sessions: number;
+    minutes: number;
+    volume: number;
+    days: number[]; // 0=Mon .. 6=Sun
+  } | null>(null);
 
   useEffect(() => {
     if (user) {
       loadRoutine();
+      loadWeekStats();
     }
   }, [user]);
+
+  const loadWeekStats = async () => {
+    try {
+      const history: WorkoutLog[] = await workoutApi.getHistory(user!.id, 30);
+      const weekStart = getWeekStart();
+      const thisWeek = history.filter(log => new Date(log.completed_at) >= weekStart);
+
+      const sessions = thisWeek.length;
+      const minutes = thisWeek.reduce((acc, l) => acc + (l.duration || 0), 0);
+      const volume = thisWeek.reduce((acc, l) =>
+        acc + l.exercise_logs.reduce((a, ex) =>
+          a + ex.sets.reduce((s, set) => s + (set.weight || 0) * (set.reps || 0), 0), 0), 0);
+
+      // Which days of the week (0=Mon..6=Sun) had a workout
+      const days = Array.from(new Set(thisWeek.map(log => {
+        const d = new Date(log.completed_at).getDay(); // 0=Sun
+        return d === 0 ? 6 : d - 1; // convert to 0=Mon
+      })));
+
+      setWeekStats({ sessions, minutes, volume, days });
+    } catch (_) {}
+  };
 
   const loadRoutine = async () => {
     try {
@@ -136,6 +175,45 @@ export default function HomeScreen({ navigation }: any) {
                 <Text style={styles.progressPct}>{progressPct}% completado</Text>
               </View>
             </View>
+
+            {/* Weekly Summary */}
+            {weekStats && weekStats.sessions > 0 && (
+              <View style={styles.weekCard}>
+                <Text style={styles.weekTitle}>Esta semana</Text>
+                <View style={styles.weekStatsRow}>
+                  <View style={styles.weekStat}>
+                    <Text style={styles.weekStatValue}>{weekStats.sessions}</Text>
+                    <Text style={styles.weekStatLabel}>sesiones</Text>
+                  </View>
+                  <View style={styles.weekStatDivider} />
+                  <View style={styles.weekStat}>
+                    <Text style={styles.weekStatValue}>{weekStats.minutes}</Text>
+                    <Text style={styles.weekStatLabel}>minutos</Text>
+                  </View>
+                  <View style={styles.weekStatDivider} />
+                  <View style={styles.weekStat}>
+                    <Text style={styles.weekStatValue}>
+                      {weekStats.volume >= 1000
+                        ? `${(weekStats.volume / 1000).toFixed(1)}t`
+                        : `${weekStats.volume}kg`}
+                    </Text>
+                    <Text style={styles.weekStatLabel}>volumen</Text>
+                  </View>
+                </View>
+                <View style={styles.weekDaysRow}>
+                  {['L', 'M', 'X', 'J', 'V', 'S', 'D'].map((label, i) => (
+                    <View
+                      key={i}
+                      style={[styles.weekDay, weekStats.days.includes(i) && styles.weekDayActive]}
+                    >
+                      <Text style={[styles.weekDayText, weekStats.days.includes(i) && styles.weekDayTextActive]}>
+                        {label}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
 
             {/* Days */}
             <Text style={styles.sectionTitle}>Días de entrenamiento</Text>
@@ -425,6 +503,74 @@ const styles = StyleSheet.create({
   ghostButtonText: {
     color: '#8E8E93',
     fontSize: 14,
+  },
+  weekCard: {
+    backgroundColor: 'white',
+    borderRadius: 18,
+    padding: 18,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.07,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  weekTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#1C1C1E',
+    marginBottom: 14,
+  },
+  weekStatsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  weekStat: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  weekStatValue: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: PRIMARY,
+  },
+  weekStatLabel: {
+    fontSize: 11,
+    color: '#8E8E93',
+    marginTop: 2,
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+    fontWeight: '600',
+  },
+  weekStatDivider: {
+    width: 1,
+    height: 32,
+    backgroundColor: '#EBEBF0',
+  },
+  weekDaysRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 6,
+  },
+  weekDay: {
+    flex: 1,
+    aspectRatio: 1,
+    borderRadius: 8,
+    backgroundColor: '#F2F2F7',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  weekDayActive: {
+    backgroundColor: PRIMARY,
+  },
+  weekDayText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#8E8E93',
+  },
+  weekDayTextActive: {
+    color: 'white',
   },
   credits: {
     color: '#C0C0C8',
