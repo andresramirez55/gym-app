@@ -7,10 +7,20 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  StatusBar,
 } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
 import { routineApi } from '../services/api';
 import type { Routine } from '../types';
+
+const PRIMARY = '#5E5CE6';
+
+const GOAL_LABELS: Record<string, string> = {
+  gain_muscle: '💪 Ganar músculo',
+  lose_weight: '🔥 Perder peso',
+  strength: '🏋️ Fuerza',
+  endurance: '🏃 Resistencia',
+};
 
 export default function HomeScreen({ navigation }: any) {
   const { user, signOut } = useAuth();
@@ -28,7 +38,6 @@ export default function HomeScreen({ navigation }: any) {
       const activeRoutine = await routineApi.getActive(user!.id);
       setRoutine(activeRoutine);
     } catch (error) {
-      // No hay rutina activa
       setRoutine(null);
     } finally {
       setLoading(false);
@@ -44,7 +53,7 @@ export default function HomeScreen({ navigation }: any) {
         frequency: user!.frequency,
       });
       setRoutine(newRoutine);
-      Alert.alert('¡Éxito!', 'Rutina generada y lista para usar');
+      Alert.alert('¡Listo!', 'Tu nueva rutina está lista');
     } catch (error) {
       Alert.alert('Error', 'No se pudo generar la rutina');
     } finally {
@@ -55,279 +64,373 @@ export default function HomeScreen({ navigation }: any) {
   const handleLogout = async () => {
     Alert.alert('Cerrar Sesión', '¿Estás seguro?', [
       { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Salir',
-        style: 'destructive',
-        onPress: signOut,
-      },
+      { text: 'Salir', style: 'destructive', onPress: signOut },
     ]);
   };
 
   if (loading) {
     return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#007AFF" />
+      <View style={styles.loadingContainer}>
+        <StatusBar barStyle="light-content" />
+        <ActivityIndicator size="large" color="white" />
       </View>
     );
   }
 
+  const progressPct = routine
+    ? Math.round((routine.week_number / routine.duration_weeks) * 100)
+    : 0;
+
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+      <StatusBar barStyle="light-content" />
+
+      {/* Header */}
       <View style={styles.header}>
-        <View>
-          <Text style={styles.greeting}>Hola, {user?.name}! 👋</Text>
-          <Text style={styles.subtitle}>
-            {user?.goal} • {user?.frequency} días/semana
-          </Text>
+        <View style={styles.headerTop}>
+          <View>
+            <Text style={styles.greeting}>Hola, {user?.name?.split(' ')[0]} 👋</Text>
+            <Text style={styles.goalChip}>{GOAL_LABELS[user?.goal || ''] || user?.goal}</Text>
+          </View>
+          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+            <Text style={styles.logoutText}>Salir</Text>
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity onPress={handleLogout}>
-          <Text style={styles.logoutText}>Salir</Text>
-        </TouchableOpacity>
       </View>
 
-      {!routine ? (
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyTitle}>No tienes rutina activa</Text>
-          <Text style={styles.emptyText}>
-            Genera una rutina personalizada con IA basada en tus objetivos
-          </Text>
-          <TouchableOpacity style={styles.primaryButton} onPress={handleGenerateRoutine}>
-            <Text style={styles.primaryButtonText}>✨ Generar Rutina con IA</Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <View style={styles.routine}>
-          <View style={styles.routineHeader}>
-            <Text style={styles.routineName}>{routine.name}</Text>
-            <Text style={styles.routineDescription}>{routine.description}</Text>
+      <View style={styles.content}>
+        {!routine ? (
+          /* Empty state */
+          <View style={styles.emptyCard}>
+            <Text style={styles.emptyIcon}>🚀</Text>
+            <Text style={styles.emptyTitle}>¡Empecemos!</Text>
+            <Text style={styles.emptyText}>
+              Generá tu rutina personalizada con IA basada en tu objetivo y disponibilidad.
+            </Text>
+            <TouchableOpacity style={styles.primaryButton} onPress={handleGenerateRoutine} activeOpacity={0.85}>
+              <Text style={styles.primaryButtonText}>✨ Generar mi rutina</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <>
+            {/* Routine Info Card */}
+            <View style={styles.routineCard}>
+              <Text style={styles.routineName}>{routine.name}</Text>
+              <Text style={styles.routineDesc}>{routine.description}</Text>
 
-            {/* Routine progress */}
-            <View style={styles.progressCard}>
-              <View style={styles.progressRow}>
-                <Text style={styles.progressLabel}>
-                  Semana {routine.week_number} de {routine.duration_weeks}
-                </Text>
-                <Text style={styles.progressDays}>
-                  {routine.days_remaining > 0
-                    ? `${routine.days_remaining}d para el cambio`
-                    : 'Rotando rutina...'}
-                </Text>
-              </View>
-              <View style={styles.progressBarBg}>
-                <View
-                  style={[
-                    styles.progressBarFill,
-                    { width: `${Math.round((routine.week_number / routine.duration_weeks) * 100)}%` as any },
-                  ]}
-                />
+              {/* Progress */}
+              <View style={styles.progressSection}>
+                <View style={styles.progressRow}>
+                  <Text style={styles.progressWeek}>
+                    Semana {routine.week_number} de {routine.duration_weeks}
+                  </Text>
+                  <Text style={styles.progressDays}>
+                    {routine.days_remaining > 0
+                      ? `${routine.days_remaining}d restantes`
+                      : 'Cambiando rutina...'}
+                  </Text>
+                </View>
+                <View style={styles.progressBarBg}>
+                  <View style={[styles.progressBarFill, { width: `${progressPct}%` as any }]} />
+                </View>
+                <Text style={styles.progressPct}>{progressPct}% completado</Text>
               </View>
             </View>
-          </View>
 
-          <Text style={styles.sectionTitle}>Días de Entrenamiento</Text>
+            {/* Days */}
+            <Text style={styles.sectionTitle}>Días de entrenamiento</Text>
 
-          {routine.days.map((day) => (
-            <TouchableOpacity
-              key={day.id}
-              style={styles.dayCard}
-              onPress={() => navigation.navigate('DayDetail', { day, routineId: routine.id })}
-            >
-              <View>
-                <Text style={styles.dayName}>{day.day_name}</Text>
-                <Text style={styles.dayInfo}>{day.exercises.length} ejercicios</Text>
-              </View>
-              <Text style={styles.arrow}>→</Text>
+            {routine.days.map((day, index) => (
+              <TouchableOpacity
+                key={day.id}
+                style={styles.dayCard}
+                onPress={() => navigation.navigate('DayDetail', { day, routineId: routine.id })}
+                activeOpacity={0.75}
+              >
+                <View style={[styles.dayIndex, { backgroundColor: DAY_COLORS[index % DAY_COLORS.length] }]}>
+                  <Text style={styles.dayIndexText}>{index + 1}</Text>
+                </View>
+                <View style={styles.dayInfo}>
+                  <Text style={styles.dayName}>{day.day_name}</Text>
+                  <Text style={styles.dayExercises}>{day.exercises.length} ejercicios</Text>
+                </View>
+                <Text style={styles.arrow}>›</Text>
+              </TouchableOpacity>
+            ))}
+
+            {/* Actions */}
+            <View style={styles.actionsRow}>
+              <TouchableOpacity
+                style={[styles.secondaryButton, { flex: 1 }]}
+                onPress={() => navigation.navigate('History')}
+                activeOpacity={0.75}
+              >
+                <Text style={styles.secondaryButtonText}>📊 Historial</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.secondaryButton, { flex: 1 }]}
+                onPress={() => navigation.navigate('Progress')}
+                activeOpacity={0.75}
+              >
+                <Text style={styles.secondaryButtonText}>📈 Progresión</Text>
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity style={styles.ghostButton} onPress={handleGenerateRoutine} activeOpacity={0.75}>
+              <Text style={styles.ghostButtonText}>Generar nueva rutina</Text>
             </TouchableOpacity>
-          ))}
+          </>
+        )}
 
-          <TouchableOpacity
-            style={styles.secondaryButton}
-            onPress={() => navigation.navigate('History')}
-          >
-            <Text style={styles.secondaryButtonText}>Ver Historial</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.regenerateButton} onPress={handleGenerateRoutine}>
-            <Text style={styles.regenerateButtonText}>Generar Nueva Rutina</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+        <Text style={styles.credits}>Creado por Andres Ramirez</Text>
+      </View>
     </ScrollView>
   );
 }
 
+const DAY_COLORS = ['#5E5CE6', '#FF6B35', '#30D158', '#FF9F0A', '#64D2FF', '#BF5AF2'];
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F7',
+    backgroundColor: '#F2F2F7',
   },
-  banner: {
-    backgroundColor: '#FFD60A',
-    padding: 8,
-    alignItems: 'center',
-  },
-  bannerText: {
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  centered: {
+  loadingContainer: {
     flex: 1,
+    backgroundColor: PRIMARY,
     justifyContent: 'center',
     alignItems: 'center',
   },
   header: {
+    backgroundColor: PRIMARY,
+    paddingTop: 60,
+    paddingBottom: 32,
+    paddingHorizontal: 24,
+  },
+  headerTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    padding: 20,
-    paddingTop: 60,
   },
   greeting: {
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: 'bold',
+    color: 'white',
+    letterSpacing: -0.3,
   },
-  subtitle: {
+  goalChip: {
+    marginTop: 6,
     fontSize: 14,
-    color: '#666',
+    color: 'rgba(255,255,255,0.8)',
+    fontWeight: '500',
+  },
+  logoutButton: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
     marginTop: 4,
   },
   logoutText: {
-    color: '#FF3B30',
-    fontSize: 16,
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
   },
-  emptyState: {
+  content: {
     padding: 20,
+    paddingTop: 24,
+  },
+  emptyCard: {
+    backgroundColor: 'white',
+    borderRadius: 20,
+    padding: 32,
     alignItems: 'center',
-    marginTop: 60,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  emptyIcon: {
+    fontSize: 52,
+    marginBottom: 12,
   },
   emptyTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    marginBottom: 12,
+    color: '#1C1C1E',
+    marginBottom: 10,
   },
   emptyText: {
-    fontSize: 16,
-    color: '#666',
+    fontSize: 15,
+    color: '#6E6E73',
     textAlign: 'center',
-    marginBottom: 32,
-    lineHeight: 24,
+    lineHeight: 22,
+    marginBottom: 28,
   },
-  routine: {
+  routineCard: {
+    backgroundColor: 'white',
+    borderRadius: 20,
     padding: 20,
-  },
-  routineHeader: {
     marginBottom: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
   },
   routineName: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: 'bold',
-    marginBottom: 8,
+    color: '#1C1C1E',
+    marginBottom: 6,
   },
-  routineDescription: {
-    fontSize: 16,
-    color: '#666',
-    lineHeight: 22,
-    marginBottom: 12,
+  routineDesc: {
+    fontSize: 14,
+    color: '#6E6E73',
+    lineHeight: 20,
+    marginBottom: 16,
   },
-  progressCard: {
-    backgroundColor: '#F0F4FF',
-    borderRadius: 10,
-    padding: 12,
-    marginTop: 4,
+  progressSection: {
+    backgroundColor: '#F2F2F7',
+    borderRadius: 12,
+    padding: 14,
   },
   progressRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 10,
   },
-  progressLabel: {
-    fontSize: 13,
-    fontWeight: 'bold',
-    color: '#007AFF',
+  progressWeek: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: PRIMARY,
   },
   progressDays: {
     fontSize: 12,
-    color: '#666',
+    color: '#8E8E93',
   },
   progressBarBg: {
-    height: 6,
-    backgroundColor: '#D1D9FF',
-    borderRadius: 3,
+    height: 8,
+    backgroundColor: '#DDDDE6',
+    borderRadius: 4,
     overflow: 'hidden',
+    marginBottom: 8,
   },
   progressBarFill: {
-    height: 6,
-    backgroundColor: '#007AFF',
-    borderRadius: 3,
+    height: 8,
+    backgroundColor: PRIMARY,
+    borderRadius: 4,
+  },
+  progressPct: {
+    fontSize: 11,
+    color: '#8E8E93',
+    textAlign: 'right',
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    marginBottom: 12,
+    color: '#1C1C1E',
+    marginBottom: 14,
   },
   dayCard: {
     backgroundColor: 'white',
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 16,
-    marginBottom: 12,
+    marginBottom: 10,
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
     elevation: 2,
   },
-  dayName: {
-    fontSize: 18,
+  dayIndex: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 14,
+  },
+  dayIndexText: {
+    color: 'white',
+    fontSize: 16,
     fontWeight: 'bold',
   },
   dayInfo: {
-    fontSize: 14,
-    color: '#666',
-    marginTop: 4,
+    flex: 1,
+  },
+  dayName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1C1C1E',
+  },
+  dayExercises: {
+    fontSize: 13,
+    color: '#8E8E93',
+    marginTop: 2,
   },
   arrow: {
-    fontSize: 24,
-    color: '#007AFF',
+    fontSize: 22,
+    color: '#C7C7CC',
+    fontWeight: '300',
   },
   primaryButton: {
-    backgroundColor: '#007AFF',
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: PRIMARY,
+    borderRadius: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 32,
     alignItems: 'center',
-    minWidth: 250,
+    shadowColor: PRIMARY,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 6,
   },
   primaryButtonText: {
     color: 'white',
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: 'bold',
+  },
+  actionsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 16,
   },
   secondaryButton: {
     backgroundColor: 'white',
-    borderRadius: 12,
+    borderRadius: 14,
     padding: 16,
     alignItems: 'center',
-    marginTop: 16,
-    borderWidth: 1,
-    borderColor: '#007AFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 2,
   },
   secondaryButtonText: {
-    color: '#007AFF',
+    color: PRIMARY,
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '600',
   },
-  regenerateButton: {
-    backgroundColor: '#F5F5F7',
-    borderRadius: 12,
+  ghostButton: {
     padding: 16,
     alignItems: 'center',
-    marginTop: 12,
+    marginTop: 4,
+    marginBottom: 12,
   },
-  regenerateButtonText: {
-    color: '#666',
-    fontSize: 16,
+  ghostButtonText: {
+    color: '#8E8E93',
+    fontSize: 14,
+  },
+  credits: {
+    color: '#C0C0C8',
+    textAlign: 'center',
+    marginTop: 8,
+    marginBottom: 24,
+    fontSize: 12,
   },
 });

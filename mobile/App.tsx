@@ -7,6 +7,7 @@ import LoginScreen from './src/screens/LoginScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import DayDetailScreen from './src/screens/DayDetailScreen';
 import HistoryScreen from './src/screens/HistoryScreen';
+import ProgressScreen from './src/screens/ProgressScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -38,6 +39,11 @@ function AppNavigator() {
               name="History"
               component={HistoryScreen}
               options={{ headerShown: true, title: 'Historial' }}
+            />
+            <Stack.Screen
+              name="Progress"
+              component={ProgressScreen}
+              options={{ headerShown: false }}
             />
           </>
         )}

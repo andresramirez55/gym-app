@@ -144,6 +144,14 @@ export const workoutApi = {
     );
     return response.data;
   },
+
+  deleteLog: async (userId: number, logId: number): Promise<void> => {
+    await api.delete(`/api/workouts/history?user_id=${userId}&id=${logId}`);
+  },
+
+  deleteAll: async (userId: number): Promise<void> => {
+    await api.delete(`/api/workouts/history?user_id=${userId}`);
+  },
 };
 
 // Storage helper for user session
