@@ -170,3 +170,6 @@ func (s *routineServiceWithTemplates) GetActiveRoutineByUserID(ctx context.Conte
 	routine.Days = days
 	return routine, nil
 }
+func (s *routineServiceWithTemplates) UpdateExercise(ctx context.Context, exercise *domain.Exercise) error {
+	return s.routineRepo.UpdateExercise(ctx, exercise)
+}

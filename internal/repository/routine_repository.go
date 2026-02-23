@@ -11,6 +11,7 @@ type RoutineRepository interface {
 	Create(ctx context.Context, routine *domain.Routine) error
 	CreateDay(ctx context.Context, day *domain.RoutineDay) error
 	CreateExercise(ctx context.Context, exercise *domain.Exercise) error
+	UpdateExercise(ctx context.Context, exercise *domain.Exercise) error
 	GetByID(ctx context.Context, id int64) (*domain.Routine, error)
 	GetActiveByUserID(ctx context.Context, userID int64) (*domain.Routine, error)
 	GetDaysByRoutineID(ctx context.Context, routineID int64) ([]domain.RoutineDay, error)
@@ -62,6 +63,19 @@ func (r *routineRepository) CreateExercise(ctx context.Context, exercise *domain
 		exercise.RoutineDayID, exercise.Name, exercise.Sets, exercise.Reps,
 		exercise.RestSeconds, exercise.Order, exercise.Notes,
 	).Scan(&exercise.ID, &exercise.CreatedAt)
+}
+
+func (r *routineRepository) UpdateExercise(ctx context.Context, exercise *domain.Exercise) error {
+	query := `
+		UPDATE exercises
+		SET name = $1, sets = $2, reps = $3, rest_seconds = $4, notes = $5
+		WHERE id = $6
+	`
+	_, err := r.db.ExecContext(ctx, query,
+		exercise.Name, exercise.Sets, exercise.Reps,
+		exercise.RestSeconds, exercise.Notes, exercise.ID,
+	)
+	return err
 }
 
 func (r *routineRepository) GetByID(ctx context.Context, id int64) (*domain.Routine, error) {

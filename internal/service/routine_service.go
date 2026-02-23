@@ -13,6 +13,7 @@ type RoutineService interface {
 	GenerateRoutineForUser(ctx context.Context, req *dto.GenerateRoutineRequest) (*domain.Routine, error)
 	GetRoutineByID(ctx context.Context, id int64) (*domain.Routine, error)
 	GetActiveRoutineByUserID(ctx context.Context, userID int64) (*domain.Routine, error)
+	UpdateExercise(ctx context.Context, exercise *domain.Exercise) error
 }
 
 type routineService struct {
@@ -134,4 +135,8 @@ func (s *routineService) GetActiveRoutineByUserID(ctx context.Context, userID in
 
 	routine.Days = days
 	return routine, nil
+}
+
+func (s *routineService) UpdateExercise(ctx context.Context, exercise *domain.Exercise) error {
+	return s.routineRepo.UpdateExercise(ctx, exercise)
 }

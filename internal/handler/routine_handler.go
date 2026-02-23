@@ -68,6 +68,37 @@ func (h *RoutineHandler) GetActiveRoutine(w http.ResponseWriter, r *http.Request
 	respondJSON(w, http.StatusOK, h.toRoutineResponse(routine))
 }
 
+func (h *RoutineHandler) UpdateExercise(w http.ResponseWriter, r *http.Request) {
+	idStr := r.URL.Query().Get("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "Invalid exercise ID")
+		return
+	}
+
+	var req dto.UpdateExerciseRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	exercise := &domain.Exercise{
+		ID:          id,
+		Name:        req.Name,
+		Sets:        req.Sets,
+		Reps:        req.Reps,
+		RestSeconds: req.RestSeconds,
+		Notes:       req.Notes,
+	}
+
+	if err := h.routineService.UpdateExercise(r.Context(), exercise); err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	respondJSON(w, http.StatusOK, map[string]string{"message": "Exercise updated successfully"})
+}
+
 func (h *RoutineHandler) toRoutineResponse(routine *domain.Routine) *dto.RoutineResponse {
 	days := make([]dto.RoutineDayDTO, len(routine.Days))
 	for i, day := range routine.Days {

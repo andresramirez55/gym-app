@@ -95,6 +95,15 @@ func main() {
 		}
 	})
 
+	// Exercise routes
+	mux.HandleFunc("/api/exercises", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPut {
+			routineHandler.UpdateExercise(w, r)
+		} else {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
 	// Workout routes
 	mux.HandleFunc("/api/workouts/log", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodPost {

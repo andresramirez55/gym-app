@@ -39,3 +39,11 @@ type ExerciseDTO struct {
 	Order       int    `json:"order"`
 	Notes       string `json:"notes,omitempty"`
 }
+
+type UpdateExerciseRequest struct {
+	Name        string `json:"name" binding:"required"`
+	Sets        int    `json:"sets"`
+	Reps        string `json:"reps"`
+	RestSeconds int    `json:"rest_seconds"`
+	Notes       string `json:"notes"`
+}

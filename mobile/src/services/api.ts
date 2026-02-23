@@ -119,6 +119,13 @@ export const routineApi = {
     const response = await api.get<Routine>(`/api/routines/active?user_id=${userId}`);
     return response.data;
   },
+
+  updateExercise: async (
+    exerciseId: number,
+    data: { name: string; sets: number; reps: string; rest_seconds: number; notes: string }
+  ): Promise<void> => {
+    await api.put(`/api/exercises?id=${exerciseId}`, data);
+  },
 };
 
 // Workout API

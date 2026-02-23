@@ -10,11 +10,14 @@ import {
   Vibration,
   StatusBar,
   Linking,
+  Modal,
+  FlatList,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../contexts/AuthContext';
-import { workoutApi } from '../services/api';
+import { workoutApi, routineApi } from '../services/api';
 import type { RoutineDay, SetLog, WorkoutLog } from '../types';
+import { getExerciseAlternatives, type ExerciseAlternative } from '../constants/exerciseAlternatives';
 
 interface Props {
   route: any;
@@ -31,6 +34,7 @@ export default function DayDetailScreen({ route, navigation }: Props) {
   const [completedExercises, setCompletedExercises] = useState<Set<number>>(new Set());
   const [restTimer, setRestTimer] = useState<{ exerciseId: number; timeLeft: number } | null>(null);
   const [lastSession, setLastSession] = useState<{ [exerciseName: string]: SetLog[] }>({});
+  const [replacementModal, setReplacementModal] = useState<{ visible: boolean; exerciseId: number; exerciseName: string } | null>(null);
 
   const storageKey = `workout_progress_${day.id}`;
 
@@ -94,6 +98,40 @@ export default function DayDetailScreen({ route, navigation }: Props) {
   const openYouTube = (exerciseName: string) => {
     const query = encodeURIComponent(`como hacer ${exerciseName}`);
     Linking.openURL(`https://www.youtube.com/results?search_query=${query}`);
+  };
+
+  const openReplaceModal = (exerciseId: number, exerciseName: string) => {
+    setReplacementModal({ visible: true, exerciseId, exerciseName });
+  };
+
+  const closeReplaceModal = () => {
+    setReplacementModal(null);
+  };
+
+  const handleReplaceExercise = async (newExerciseName: string) => {
+    if (!replacementModal) return;
+
+    try {
+      const exerciseToUpdate = day.exercises.find(ex => ex.id === replacementModal.exerciseId);
+      if (!exerciseToUpdate) return;
+
+      await routineApi.updateExercise(replacementModal.exerciseId, {
+        name: newExerciseName,
+        sets: exerciseToUpdate.sets,
+        reps: exerciseToUpdate.reps,
+        rest_seconds: exerciseToUpdate.rest_seconds,
+        notes: exerciseToUpdate.notes || '',
+      });
+
+      Alert.alert('¡Listo!', `Ejercicio reemplazado: ${replacementModal.exerciseName} → ${newExerciseName}`, [
+        { text: 'OK', onPress: () => {
+          closeReplaceModal();
+          navigation.goBack();
+        }},
+      ]);
+    } catch (error) {
+      Alert.alert('Error', 'No se pudo reemplazar el ejercicio');
+    }
   };
 
   const formatTime = (seconds: number) => {
@@ -213,6 +251,13 @@ export default function DayDetailScreen({ route, navigation }: Props) {
                     <Text style={[styles.exerciseName, isDone && styles.exerciseNameDone, { flex: 1 }]}>
                       {exercise.name}
                     </Text>
+                    <TouchableOpacity
+                      style={styles.replaceBtn}
+                      onPress={() => openReplaceModal(exercise.id, exercise.name)}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Text style={styles.replaceBtnText}>⇄</Text>
+                    </TouchableOpacity>
                     <TouchableOpacity
                       style={styles.youtubeBtn}
                       onPress={() => openYouTube(exercise.name)}
@@ -340,6 +385,42 @@ export default function DayDetailScreen({ route, navigation }: Props) {
           <Text style={styles.finishBtnText}>Finalizar entrenamiento</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Replacement Modal */}
+      <Modal
+        visible={replacementModal?.visible || false}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={closeReplaceModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Reemplazar ejercicio</Text>
+              <TouchableOpacity onPress={closeReplaceModal} style={styles.modalCloseBtn}>
+                <Text style={styles.modalCloseText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.modalSubtitle}>
+              Elegí un ejercicio alternativo para reemplazar: {replacementModal?.exerciseName}
+            </Text>
+            <FlatList
+              data={replacementModal ? getExerciseAlternatives(replacementModal.exerciseName) : []}
+              keyExtractor={(item, index) => `${item.name}-${index}`}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={styles.alternativeItem}
+                  onPress={() => handleReplaceExercise(item.name)}
+                >
+                  <Text style={styles.alternativeName}>{item.name}</Text>
+                  <Text style={styles.alternativeCategory}>{item.category}</Text>
+                </TouchableOpacity>
+              )}
+              style={styles.alternativesList}
+            />
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -433,6 +514,20 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '700',
     color: '#1C1C1E',
+  },
+  replaceBtn: {
+    backgroundColor: '#FF9F0A',
+    width: 26,
+    height: 26,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 6,
+  },
+  replaceBtnText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: 'bold',
   },
   youtubeBtn: {
     backgroundColor: '#FF3B30',
@@ -665,5 +760,70 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     letterSpacing: 0.3,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: 20,
+    paddingHorizontal: 20,
+    maxHeight: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#1C1C1E',
+  },
+  modalCloseBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F2F2F7',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalCloseText: {
+    fontSize: 18,
+    color: '#8E8E93',
+    fontWeight: '600',
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: '#8E8E93',
+    marginBottom: 16,
+    lineHeight: 20,
+  },
+  alternativesList: {
+    marginBottom: 20,
+  },
+  alternativeItem: {
+    backgroundColor: '#F8F8FC',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#EBEBF0',
+  },
+  alternativeName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1C1C1E',
+    marginBottom: 4,
+  },
+  alternativeCategory: {
+    fontSize: 13,
+    color: PRIMARY,
+    fontWeight: '500',
   },
 });
