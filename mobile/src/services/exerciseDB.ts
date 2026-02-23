@@ -71,23 +71,124 @@ export async function searchExercise(exerciseName: string): Promise<ExerciseInfo
  * Mapeo manual de ejercicios en español a nombres en inglés para mejor match
  */
 const spanishToEnglishMap: { [key: string]: string } = {
+  // Pecho
   'press banca': 'bench press',
   'press banca con barra': 'barbell bench press',
+  'press banca con mancuernas': 'dumbbell bench press',
+  'press de banca': 'bench press',
   'press inclinado': 'incline bench press',
-  'sentadilla': 'squat',
-  'sentadilla con barra': 'barbell squat',
+  'press banca inclinado': 'incline bench press',
+  'press inclinado con mancuernas': 'incline dumbbell press',
+  'press cerrado': 'close grip bench press',
+  'aperturas con mancuernas': 'dumbbell fly',
+  'aperturas en cable': 'cable fly',
+  'aperturas en polea': 'cable fly',
+  'fondos en paralelas': 'dips',
+  'fondos': 'dips',
+  'pullover con mancuerna': 'dumbbell pullover',
+  'pullover': 'pullover',
+  'flexiones': 'push up',
+
+  // Espalda
+  'dominadas': 'pull up',
+  'dominadas pronadas': 'pull up',
+  'dominadas asistidas': 'assisted pull up',
+  'jalón al pecho': 'lat pulldown',
+  'jalón': 'lat pulldown',
+  'remo con barra': 'barbell row',
+  'remo con mancuerna': 'dumbbell row',
+  'remo en polea': 'cable row',
+  'remo en polea baja': 'seated cable row',
+  'remo pendlay': 'pendlay row',
+  'remo en t': 't bar row',
   'peso muerto': 'deadlift',
   'peso muerto rumano': 'romanian deadlift',
-  'dominadas': 'pull up',
-  'remo con barra': 'barbell row',
-  'curl con barra': 'barbell curl',
+  'hiperextensiones': 'hyperextension',
+  'buenos días': 'good morning',
+  'face pulls': 'face pull',
+
+  // Hombros
   'press militar': 'military press',
+  'press militar con barra': 'overhead press',
+  'press militar con mancuernas': 'dumbbell shoulder press',
   'press arnold': 'arnold press',
+  'arnold press': 'arnold press',
   'elevaciones laterales': 'lateral raise',
-  'fondos': 'dips',
-  'hip thrust': 'hip thrust',
-  'zancadas': 'lunge',
+  'elevaciones frontales': 'front raise',
+  'pájaros': 'reverse fly',
+
+  // Piernas
+  'sentadilla': 'squat',
+  'sentadilla con barra': 'barbell squat',
+  'sentadillas': 'squat',
+  'sentadilla frontal': 'front squat',
+  'sentadilla búlgara': 'bulgarian split squat',
+  'sentadilla goblet': 'goblet squat',
+  'sentadilla sumo': 'sumo squat',
   'prensa': 'leg press',
+  'prensa de piernas': 'leg press',
+  'prensa a 45': 'leg press',
+  'extensión de cuádriceps': 'leg extension',
+  'extensiones de cuádriceps': 'leg extension',
+  'curl femoral': 'leg curl',
+  'curl de isquiotibiales': 'leg curl',
+  'curl nórdico': 'nordic curl',
+  'zancadas': 'lunge',
+  'zancadas con mancuernas': 'dumbbell lunge',
+  'zancada': 'lunge',
+  'step-ups': 'step up',
+
+  // Glúteos
+  'hip thrust': 'hip thrust',
+  'hip thrust con barra': 'barbell hip thrust',
+  'abducción de cadera': 'hip abduction',
+  'abducción en máquina': 'hip abduction machine',
+
+  // Pantorrillas
+  'elevaciones de gemelos': 'calf raise',
+  'elevaciones de pantorrilla': 'calf raise',
+  'elevación de pantorrillas': 'calf raise',
+
+  // Bíceps
+  'curl con barra': 'barbell curl',
+  'curl de bíceps': 'bicep curl',
+  'curl de bíceps con barra': 'barbell curl',
+  'curl martillo': 'hammer curl',
+  'curl de concentración': 'concentration curl',
+  'curl concentrado': 'concentration curl',
+  'curl con mancuernas': 'dumbbell curl',
+  'curl inclinado': 'incline dumbbell curl',
+  'curl con barra ez': 'ez bar curl',
+
+  // Tríceps
+  'press francés': 'skull crusher',
+  'extensión de tríceps': 'tricep extension',
+  'extensiones de tríceps': 'tricep extension',
+  'extensión tríceps en polea': 'cable tricep extension',
+  'extensiones de tríceps en polea': 'cable pushdown',
+  'fondos de tríceps': 'tricep dips',
+  'extensión tríceps barra ez': 'ez bar tricep extension',
+
+  // Abdomen
+  'plancha': 'plank',
+  'plancha abdominal': 'plank',
+  'crunches': 'crunch',
+  'abdominales': 'crunch',
+  'elevaciones de piernas': 'leg raise',
+  'sit-ups': 'sit up',
+  'abdominales en rueda': 'ab wheel rollout',
+  'escaladores': 'mountain climber',
+  'mountain climbers': 'mountain climber',
+
+  // CrossFit/Funcional
+  'burpees': 'burpee',
+  'kettlebell swing': 'kettlebell swing',
+  'wall balls': 'wall ball',
+  'box jumps': 'box jump',
+  'saltos al cajón': 'box jump',
+  'saltos en box': 'box jump',
+  'farmer walk': 'farmers walk',
+  'saltos en estrella': 'jumping jack',
 };
 
 /**
