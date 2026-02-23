@@ -39,6 +39,8 @@ export default function DayDetailScreen({ route, navigation }: Props) {
   const [lastSession, setLastSession] = useState<{ [exerciseName: string]: SetLog[] }>({});
   const [replacementModal, setReplacementModal] = useState<{ visible: boolean; exerciseId: number; exerciseName: string } | null>(null);
   const [exerciseInfoModal, setExerciseInfoModal] = useState<{ visible: boolean; exerciseName: string; info: ExerciseInfo | null; loading: boolean } | null>(null);
+  const [restTimeModal, setRestTimeModal] = useState<{ visible: boolean; exerciseId: number; currentRestTime: number } | null>(null);
+  const [newRestTime, setNewRestTime] = useState<string>('');
 
   const storageKey = `workout_progress_${day.id}`;
 
@@ -148,6 +150,48 @@ export default function DayDetailScreen({ route, navigation }: Props) {
       ]);
     } catch (error) {
       Alert.alert('Error', 'No se pudo reemplazar el ejercicio');
+    }
+  };
+
+  const openRestTimeModal = (exerciseId: number, currentRestTime: number) => {
+    setRestTimeModal({ visible: true, exerciseId, currentRestTime });
+    setNewRestTime(currentRestTime.toString());
+  };
+
+  const closeRestTimeModal = () => {
+    setRestTimeModal(null);
+    setNewRestTime('');
+  };
+
+  const handleSaveRestTime = async () => {
+    if (!restTimeModal) return;
+
+    const restSeconds = parseInt(newRestTime);
+    if (isNaN(restSeconds) || restSeconds < 0) {
+      Alert.alert('Error', 'Ingresá un tiempo válido en segundos');
+      return;
+    }
+
+    try {
+      const exerciseToUpdate = day.exercises.find(ex => ex.id === restTimeModal.exerciseId);
+      if (!exerciseToUpdate) return;
+
+      await routineApi.updateExercise(restTimeModal.exerciseId, {
+        name: exerciseToUpdate.name,
+        sets: exerciseToUpdate.sets,
+        reps: exerciseToUpdate.reps,
+        rest_seconds: restSeconds,
+        notes: exerciseToUpdate.notes || '',
+      });
+
+      Alert.alert('¡Listo!', `Tiempo de descanso actualizado a ${restSeconds}s`, [
+        { text: 'OK', onPress: () => {
+          closeRestTimeModal();
+          navigation.goBack();
+        }},
+      ]);
+    } catch (error) {
+      Alert.alert('Error', 'No se pudo actualizar el tiempo de descanso');
     }
   };
 
@@ -283,9 +327,16 @@ export default function DayDetailScreen({ route, navigation }: Props) {
                       <Text style={styles.infoBtnText}>ℹ️</Text>
                     </TouchableOpacity>
                   </View>
-                  <Text style={styles.exerciseMeta}>
-                    {exercise.sets} × {exercise.reps} reps · {exercise.rest_seconds}s descanso
-                  </Text>
+                  <View style={styles.exerciseMetaRow}>
+                    <Text style={styles.exerciseMeta}>
+                      {exercise.sets} × {exercise.reps} reps ·
+                    </Text>
+                    <TouchableOpacity onPress={() => openRestTimeModal(exercise.id, exercise.rest_seconds)}>
+                      <Text style={[styles.exerciseMeta, styles.editableRestTime]}>
+                        {exercise.rest_seconds}s descanso ✏️
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
                   {lastSession[exercise.name] && (
                     <Text style={styles.lastSessionText}>
                       Última vez: {lastSession[exercise.name].map(s =>
@@ -503,6 +554,72 @@ export default function DayDetailScreen({ route, navigation }: Props) {
           </View>
         </View>
       </Modal>
+
+      {/* Rest Time Edit Modal */}
+      <Modal
+        visible={restTimeModal?.visible || false}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={closeRestTimeModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Editar Tiempo de Descanso</Text>
+            <Text style={styles.modalSubtitle}>Ingresá el tiempo en segundos</Text>
+
+            <TextInput
+              style={styles.restTimeInput}
+              value={newRestTime}
+              onChangeText={setNewRestTime}
+              keyboardType="numeric"
+              placeholder="Ej: 90"
+              autoFocus
+            />
+
+            <View style={styles.quickRestButtons}>
+              <TouchableOpacity
+                style={styles.quickRestBtn}
+                onPress={() => setNewRestTime('30')}
+              >
+                <Text style={styles.quickRestBtnText}>30s</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.quickRestBtn}
+                onPress={() => setNewRestTime('60')}
+              >
+                <Text style={styles.quickRestBtnText}>60s</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.quickRestBtn}
+                onPress={() => setNewRestTime('90')}
+              >
+                <Text style={styles.quickRestBtnText}>90s</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.quickRestBtn}
+                onPress={() => setNewRestTime('120')}
+              >
+                <Text style={styles.quickRestBtnText}>120s</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={closeRestTimeModal}
+              >
+                <Text style={styles.cancelButtonText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.confirmButton]}
+                onPress={handleSaveRestTime}
+              >
+                <Text style={styles.confirmButtonText}>Guardar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -625,9 +742,53 @@ const styles = StyleSheet.create({
   exerciseNameDone: {
     color: '#1C7A38',
   },
+  exerciseMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+  },
   exerciseMeta: {
     fontSize: 13,
     color: '#8E8E93',
+  },
+  editableRestTime: {
+    marginLeft: 4,
+    textDecorationLine: 'underline',
+    fontWeight: '600',
+  },
+  restTimeInput: {
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 18,
+    textAlign: 'center',
+    marginVertical: 20,
+  },
+  quickRestButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 24,
+    gap: 8,
+  },
+  quickRestBtn: {
+    flex: 1,
+    backgroundColor: '#F2F2F7',
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  quickRestBtnText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#666',
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: '#8E8E93',
+    textAlign: 'center',
+    marginTop: 8,
+    marginBottom: 4,
   },
   lastSessionText: {
     fontSize: 12,
