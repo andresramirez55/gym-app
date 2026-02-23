@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
+import * as Updates from 'expo-updates';
 
 import LoginScreen from './src/screens/LoginScreen';
 import HomeScreen from './src/screens/HomeScreen';
@@ -53,6 +54,27 @@ function AppNavigator() {
 }
 
 export default function App() {
+  useEffect(() => {
+    async function checkForUpdates() {
+      try {
+        // Solo verificar updates en producción (no en desarrollo)
+        if (!__DEV__) {
+          const update = await Updates.checkForUpdateAsync();
+          if (update.isAvailable) {
+            await Updates.fetchUpdateAsync();
+            // Reiniciar la app para aplicar el update
+            await Updates.reloadAsync();
+          }
+        }
+      } catch (error) {
+        // Silenciar errores de updates para no afectar la experiencia del usuario
+        console.log('Error checking for updates:', error);
+      }
+    }
+
+    checkForUpdates();
+  }, []);
+
   return (
     <AuthProvider>
       <AppNavigator />
