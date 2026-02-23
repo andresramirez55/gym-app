@@ -509,22 +509,29 @@ export default function DayDetailScreen({ route, navigation }: Props) {
             {exerciseInfoModal?.loading ? (
               <View style={styles.loadingContainer}>
                 <ActivityIndicator size="large" color={PRIMARY} />
-                <Text style={styles.loadingText}>Cargando demostración...</Text>
+                <Text style={styles.loadingText}>Cargando información...</Text>
               </View>
             ) : exerciseInfoModal?.info ? (
               <ScrollView showsVerticalScrollIndicator={false}>
-                <View style={styles.gifContainer}>
-                  <Image
-                    source={{ uri: exerciseInfoModal.info.gifUrl }}
-                    style={styles.exerciseGif}
-                    resizeMode="contain"
-                  />
-                </View>
+                {/* Description */}
+                {exerciseInfoModal.info.description && (
+                  <View style={styles.descriptionContainer}>
+                    <Text style={styles.description}>{exerciseInfoModal.info.description}</Text>
+                  </View>
+                )}
+
+                {/* Exercise Details */}
                 <View style={styles.exerciseDetails}>
                   <View style={styles.detailRow}>
                     <Text style={styles.detailLabel}>Músculo objetivo:</Text>
                     <Text style={styles.detailValue}>{exerciseInfoModal.info.target}</Text>
                   </View>
+                  {exerciseInfoModal.info.secondaryMuscles && exerciseInfoModal.info.secondaryMuscles.length > 0 && (
+                    <View style={styles.detailRow}>
+                      <Text style={styles.detailLabel}>Músculos secundarios:</Text>
+                      <Text style={styles.detailValue}>{exerciseInfoModal.info.secondaryMuscles.join(', ')}</Text>
+                    </View>
+                  )}
                   <View style={styles.detailRow}>
                     <Text style={styles.detailLabel}>Parte del cuerpo:</Text>
                     <Text style={styles.detailValue}>{exerciseInfoModal.info.bodyPart}</Text>
@@ -533,12 +540,29 @@ export default function DayDetailScreen({ route, navigation }: Props) {
                     <Text style={styles.detailLabel}>Equipo:</Text>
                     <Text style={styles.detailValue}>{exerciseInfoModal.info.equipment}</Text>
                   </View>
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Dificultad:</Text>
+                    <Text style={styles.detailValue}>{exerciseInfoModal.info.difficulty}</Text>
+                  </View>
                 </View>
+
+                {/* Instructions */}
+                {exerciseInfoModal.info.instructions && exerciseInfoModal.info.instructions.length > 0 && (
+                  <View style={styles.instructionsContainer}>
+                    <Text style={styles.instructionsTitle}>Cómo hacerlo:</Text>
+                    {exerciseInfoModal.info.instructions.map((instruction, index) => (
+                      <View key={index} style={styles.instructionRow}>
+                        <Text style={styles.instructionNumber}>{index + 1}.</Text>
+                        <Text style={styles.instructionText}>{instruction}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
               </ScrollView>
             ) : (
               <View style={styles.noInfoContainer}>
                 <Text style={styles.noInfoText}>
-                  No pudimos encontrar una demostración para este ejercicio.
+                  No pudimos encontrar información para este ejercicio.
                 </Text>
                 <TouchableOpacity
                   style={styles.youtubeButton}
@@ -1090,16 +1114,44 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#8E8E93',
   },
-  gifContainer: {
+  descriptionContainer: {
     backgroundColor: '#F2F2F7',
     borderRadius: 12,
     padding: 16,
-    marginVertical: 16,
-    alignItems: 'center',
+    marginVertical: 12,
   },
-  exerciseGif: {
-    width: '100%',
-    height: 300,
+  description: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: '#3C3C43',
+  },
+  instructionsContainer: {
+    marginTop: 20,
+    marginBottom: 16,
+  },
+  instructionsTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1C1C1E',
+    marginBottom: 12,
+  },
+  instructionRow: {
+    flexDirection: 'row',
+    marginBottom: 12,
+    paddingLeft: 8,
+  },
+  instructionNumber: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: PRIMARY,
+    marginRight: 8,
+    minWidth: 24,
+  },
+  instructionText: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: '#3C3C43',
+    flex: 1,
   },
   exerciseDetails: {
     marginTop: 8,

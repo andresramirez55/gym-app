@@ -18,11 +18,14 @@ const exerciseDBApi = axios.create({
 export interface ExerciseInfo {
   id: string;
   name: string;
-  gifUrl: string;
-  target: string; // Músculo objetivo
-  bodyPart: string; // Parte del cuerpo
-  equipment: string; // Equipo necesario
-  instructions?: string[];
+  bodyPart: string;
+  equipment: string;
+  target: string;
+  secondaryMuscles: string[];
+  instructions: string[];
+  description: string;
+  difficulty: string;
+  category: string;
 }
 
 // Cache para evitar llamadas repetidas a la API
