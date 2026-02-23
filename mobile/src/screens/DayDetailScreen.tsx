@@ -12,12 +12,15 @@ import {
   Linking,
   Modal,
   FlatList,
+  Image,
+  ActivityIndicator,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../contexts/AuthContext';
 import { workoutApi, routineApi } from '../services/api';
 import type { RoutineDay, SetLog, WorkoutLog } from '../types';
 import { getExerciseAlternatives, type ExerciseAlternative } from '../constants/exerciseAlternatives';
+import { searchExerciseWithTranslation, type ExerciseInfo } from '../services/exerciseDB';
 
 interface Props {
   route: any;
@@ -35,6 +38,7 @@ export default function DayDetailScreen({ route, navigation }: Props) {
   const [restTimer, setRestTimer] = useState<{ exerciseId: number; timeLeft: number } | null>(null);
   const [lastSession, setLastSession] = useState<{ [exerciseName: string]: SetLog[] }>({});
   const [replacementModal, setReplacementModal] = useState<{ visible: boolean; exerciseId: number; exerciseName: string } | null>(null);
+  const [exerciseInfoModal, setExerciseInfoModal] = useState<{ visible: boolean; exerciseName: string; info: ExerciseInfo | null; loading: boolean } | null>(null);
 
   const storageKey = `workout_progress_${day.id}`;
 
@@ -95,7 +99,20 @@ export default function DayDetailScreen({ route, navigation }: Props) {
 
   const cancelRest = () => setRestTimer(null);
 
-  const openYouTube = (exerciseName: string) => {
+  const openExerciseInfo = async (exerciseName: string) => {
+    setExerciseInfoModal({ visible: true, exerciseName, info: null, loading: true });
+
+    try {
+      const info = await searchExerciseWithTranslation(exerciseName);
+      setExerciseInfoModal({ visible: true, exerciseName, info, loading: false });
+    } catch (error) {
+      setExerciseInfoModal({ visible: true, exerciseName, info: null, loading: false });
+    }
+  };
+
+  const closeExerciseInfo = () => setExerciseInfoModal(null);
+
+  const openYouTubeFallback = (exerciseName: string) => {
     const query = encodeURIComponent(`como hacer ${exerciseName}`);
     Linking.openURL(`https://www.youtube.com/results?search_query=${query}`);
   };
@@ -259,11 +276,11 @@ export default function DayDetailScreen({ route, navigation }: Props) {
                       <Text style={styles.replaceBtnText}>⇄</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
-                      style={styles.youtubeBtn}
-                      onPress={() => openYouTube(exercise.name)}
+                      style={styles.infoBtn}
+                      onPress={() => openExerciseInfo(exercise.name)}
                       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                     >
-                      <Text style={styles.youtubeBtnText}>▶</Text>
+                      <Text style={styles.infoBtnText}>ℹ️</Text>
                     </TouchableOpacity>
                   </View>
                   <Text style={styles.exerciseMeta}>
@@ -421,6 +438,71 @@ export default function DayDetailScreen({ route, navigation }: Props) {
           </View>
         </View>
       </Modal>
+
+      {/* Exercise Info Modal */}
+      <Modal
+        visible={exerciseInfoModal?.visible || false}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={closeExerciseInfo}
+      >
+        <View style={styles.exerciseModalOverlay}>
+          <View style={styles.exerciseModalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>{exerciseInfoModal?.exerciseName}</Text>
+              <TouchableOpacity onPress={closeExerciseInfo} style={styles.modalCloseBtn}>
+                <Text style={styles.modalCloseText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            {exerciseInfoModal?.loading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={PRIMARY} />
+                <Text style={styles.loadingText}>Cargando demostración...</Text>
+              </View>
+            ) : exerciseInfoModal?.info ? (
+              <ScrollView showsVerticalScrollIndicator={false}>
+                <View style={styles.gifContainer}>
+                  <Image
+                    source={{ uri: exerciseInfoModal.info.gifUrl }}
+                    style={styles.exerciseGif}
+                    resizeMode="contain"
+                  />
+                </View>
+                <View style={styles.exerciseDetails}>
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Músculo objetivo:</Text>
+                    <Text style={styles.detailValue}>{exerciseInfoModal.info.target}</Text>
+                  </View>
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Parte del cuerpo:</Text>
+                    <Text style={styles.detailValue}>{exerciseInfoModal.info.bodyPart}</Text>
+                  </View>
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Equipo:</Text>
+                    <Text style={styles.detailValue}>{exerciseInfoModal.info.equipment}</Text>
+                  </View>
+                </View>
+              </ScrollView>
+            ) : (
+              <View style={styles.noInfoContainer}>
+                <Text style={styles.noInfoText}>
+                  No pudimos encontrar una demostración para este ejercicio.
+                </Text>
+                <TouchableOpacity
+                  style={styles.youtubeButton}
+                  onPress={() => {
+                    closeExerciseInfo();
+                    openYouTubeFallback(exerciseInfoModal?.exerciseName || '');
+                  }}
+                >
+                  <Text style={styles.youtubeButtonText}>▶ Buscar en YouTube</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -529,18 +611,16 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: 'bold',
   },
-  youtubeBtn: {
-    backgroundColor: '#FF3B30',
+  infoBtn: {
+    backgroundColor: '#007AFF',
     width: 26,
     height: 26,
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  youtubeBtnText: {
-    color: 'white',
-    fontSize: 10,
-    fontWeight: 'bold',
+  infoBtnText: {
+    fontSize: 14,
   },
   exerciseNameDone: {
     color: '#1C7A38',
@@ -825,5 +905,82 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: PRIMARY,
     fontWeight: '500',
+  },
+  exerciseModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  exerciseModalContent: {
+    backgroundColor: 'white',
+    borderRadius: 20,
+    padding: 20,
+    width: '90%',
+    maxHeight: '80%',
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: '#8E8E93',
+  },
+  gifContainer: {
+    backgroundColor: '#F2F2F7',
+    borderRadius: 12,
+    padding: 16,
+    marginVertical: 16,
+    alignItems: 'center',
+  },
+  exerciseGif: {
+    width: '100%',
+    height: 300,
+  },
+  exerciseDetails: {
+    marginTop: 8,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F5',
+  },
+  detailLabel: {
+    fontSize: 14,
+    color: '#8E8E93',
+    fontWeight: '500',
+  },
+  detailValue: {
+    fontSize: 14,
+    color: '#1C1C1E',
+    fontWeight: '600',
+    textTransform: 'capitalize',
+  },
+  noInfoContainer: {
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  noInfoText: {
+    fontSize: 15,
+    color: '#8E8E93',
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 22,
+  },
+  youtubeButton: {
+    backgroundColor: '#FF3B30',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  youtubeButtonText: {
+    color: 'white',
+    fontSize: 15,
+    fontWeight: 'bold',
   },
 });
