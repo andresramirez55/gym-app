@@ -219,7 +219,12 @@ export default function DayDetailScreen({ route, navigation }: Props) {
 
   const removeSet = (exerciseId: number, setIndex: number) => {
     const exerciseSets = sets[exerciseId].filter((_, i) => i !== setIndex);
-    setSets({ ...sets, [exerciseId]: exerciseSets });
+    // Renumerar las series restantes para que sean secuenciales
+    const renumberedSets = exerciseSets.map((set, index) => ({
+      ...set,
+      set_number: index + 1
+    }));
+    setSets({ ...sets, [exerciseId]: renumberedSets });
   };
 
   const completeExercise = (exerciseId: number) => {
