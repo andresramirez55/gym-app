@@ -32,7 +32,8 @@ const PRIMARY = '#5E5CE6';
 export default function DayDetailScreen({ route, navigation }: Props) {
   const { day, routineId } = route.params as { day: RoutineDay; routineId?: number };
   const { user } = useAuth();
-  const [startTime] = useState(new Date());
+  const [startTime, setStartTime] = useState<Date | null>(null);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [sets, setSets] = useState<{ [exerciseId: number]: SetLog[] }>({});
   const [completedExercises, setCompletedExercises] = useState<Set<number>>(new Set());
   const [restTimer, setRestTimer] = useState<{ exerciseId: number; timeLeft: number } | null>(null);
@@ -112,6 +113,13 @@ export default function DayDetailScreen({ route, navigation }: Props) {
           if (parsed.completedExercises) {
             setCompletedExercises(new Set(parsed.completedExercises));
           }
+          if (parsed.startTime) {
+            const restoredStartTime = new Date(parsed.startTime);
+            setStartTime(restoredStartTime);
+            // Calcular elapsed inicial
+            const elapsed = Math.floor((new Date().getTime() - restoredStartTime.getTime()) / 1000);
+            setElapsedSeconds(elapsed);
+          }
         } catch (_) {}
       }
     });
@@ -134,13 +142,29 @@ export default function DayDetailScreen({ route, navigation }: Props) {
     }).catch(() => {});
   }, []);
 
-  // Auto-save whenever sets or completedExercises change
+  // Auto-save whenever sets, completedExercises, or startTime change
   useEffect(() => {
     AsyncStorage.setItem(
       storageKey,
-      JSON.stringify({ sets, completedExercises: Array.from(completedExercises) })
+      JSON.stringify({
+        sets,
+        completedExercises: Array.from(completedExercises),
+        startTime: startTime?.getTime() || null,
+      })
     );
-  }, [sets, completedExercises]);
+  }, [sets, completedExercises, startTime]);
+
+  // Workout timer - update every second
+  useEffect(() => {
+    if (!startTime) return;
+
+    const interval = setInterval(() => {
+      const elapsed = Math.floor((new Date().getTime() - startTime.getTime()) / 1000);
+      setElapsedSeconds(elapsed);
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [startTime]);
 
   // Rest timer countdown
   useEffect(() => {
@@ -263,7 +287,18 @@ export default function DayDetailScreen({ route, navigation }: Props) {
     return m > 0 ? `${m}:${s.toString().padStart(2, '0')}` : `${s}s`;
   };
 
+  const formatWorkoutTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  };
+
   const addSet = (exerciseId: number) => {
+    // Iniciar timer en la primera serie
+    if (!startTime) {
+      setStartTime(new Date());
+    }
+
     const exerciseSets = sets[exerciseId] || [];
     const newSet: SetLog = {
       set_number: exerciseSets.length + 1,
@@ -319,7 +354,9 @@ export default function DayDetailScreen({ route, navigation }: Props) {
       return;
     }
 
-    const duration = Math.floor((new Date().getTime() - startTime.getTime()) / 1000 / 60);
+    const duration = startTime
+      ? Math.floor((new Date().getTime() - startTime.getTime()) / 1000 / 60)
+      : 1;
 
     try {
       await workoutApi.log({
@@ -353,8 +390,15 @@ export default function DayDetailScreen({ route, navigation }: Props) {
           <Text style={styles.backText}>← Volver</Text>
         </TouchableOpacity>
         <Text style={styles.title}>{day.day_name}</Text>
-        <View style={styles.progressChip}>
-          <Text style={styles.progressChipText}>{completedCount}/{totalCount} listos</Text>
+        <View style={styles.headerChips}>
+          {startTime && (
+            <View style={styles.timerChip}>
+              <Text style={styles.timerChipText}>⏱ {formatWorkoutTime(elapsedSeconds)}</Text>
+            </View>
+          )}
+          <View style={styles.progressChip}>
+            <Text style={styles.progressChipText}>{completedCount}/{totalCount} listos</Text>
+          </View>
         </View>
       </View>
 
@@ -749,12 +793,27 @@ const styles = StyleSheet.create({
     color: 'white',
     marginBottom: 8,
   },
+  headerChips: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  timerChip: {
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 20,
+  },
+  timerChipText: {
+    color: 'white',
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
   progressChip: {
     backgroundColor: 'rgba(255,255,255,0.2)',
     paddingHorizontal: 12,
     paddingVertical: 5,
     borderRadius: 20,
-    alignSelf: 'flex-start',
   },
   progressChipText: {
     color: 'white',
