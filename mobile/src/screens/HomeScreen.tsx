@@ -9,6 +9,7 @@ import {
   Alert,
   StatusBar,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../contexts/AuthContext';
 import { routineApi, workoutApi } from '../services/api';
 import type { Routine, WorkoutLog } from '../types';
@@ -42,13 +43,44 @@ export default function HomeScreen({ navigation }: any) {
     volume: number;
     days: number[]; // 0=Mon .. 6=Sun
   } | null>(null);
+  const [todayCompletedDays, setTodayCompletedDays] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     if (user) {
       loadRoutine();
       loadWeekStats();
+      loadTodayWorkouts();
     }
   }, [user]);
+
+  // Refrescar workouts de hoy cuando la pantalla recibe focus
+  useFocusEffect(
+    React.useCallback(() => {
+      if (user) {
+        loadTodayWorkouts();
+        loadWeekStats();
+      }
+    }, [user])
+  );
+
+  const loadTodayWorkouts = async () => {
+    try {
+      const history: WorkoutLog[] = await workoutApi.getHistory(user!.id, 10);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      // Filtrar workouts de hoy
+      const todayWorkouts = history.filter(log => {
+        const logDate = new Date(log.completed_at);
+        logDate.setHours(0, 0, 0, 0);
+        return logDate.getTime() === today.getTime();
+      });
+
+      // Extraer routine_day_id de los workouts de hoy
+      const completedDayIds = new Set(todayWorkouts.map(log => log.routine_day_id));
+      setTodayCompletedDays(completedDayIds);
+    } catch (_) {}
+  };
 
   const loadWeekStats = async () => {
     try {
@@ -218,23 +250,34 @@ export default function HomeScreen({ navigation }: any) {
             {/* Days */}
             <Text style={styles.sectionTitle}>Días de entrenamiento</Text>
 
-            {routine.days.map((day, index) => (
-              <TouchableOpacity
-                key={day.id}
-                style={styles.dayCard}
-                onPress={() => navigation.navigate('DayDetail', { day, routineId: routine.id })}
-                activeOpacity={0.75}
-              >
-                <View style={[styles.dayIndex, { backgroundColor: DAY_COLORS[index % DAY_COLORS.length] }]}>
-                  <Text style={styles.dayIndexText}>{index + 1}</Text>
-                </View>
-                <View style={styles.dayInfo}>
-                  <Text style={styles.dayName}>{day.day_name}</Text>
-                  <Text style={styles.dayExercises}>{day.exercises.length} ejercicios</Text>
-                </View>
-                <Text style={styles.arrow}>›</Text>
-              </TouchableOpacity>
-            ))}
+            {routine.days.map((day, index) => {
+              const isCompletedToday = todayCompletedDays.has(day.id);
+              return (
+                <TouchableOpacity
+                  key={day.id}
+                  style={[styles.dayCard, isCompletedToday && styles.dayCardCompleted]}
+                  onPress={() => navigation.navigate('DayDetail', { day, routineId: routine.id })}
+                  activeOpacity={0.75}
+                >
+                  <View style={[
+                    styles.dayIndex,
+                    { backgroundColor: isCompletedToday ? '#30D158' : DAY_COLORS[index % DAY_COLORS.length] }
+                  ]}>
+                    <Text style={styles.dayIndexText}>{isCompletedToday ? '✓' : index + 1}</Text>
+                  </View>
+                  <View style={styles.dayInfo}>
+                    <Text style={styles.dayName}>{day.day_name}</Text>
+                    <Text style={styles.dayExercises}>{day.exercises.length} ejercicios</Text>
+                    {isCompletedToday && (
+                      <View style={styles.completedBadge}>
+                        <Text style={styles.completedBadgeText}>Completado hoy</Text>
+                      </View>
+                    )}
+                  </View>
+                  <Text style={styles.arrow}>›</Text>
+                </TouchableOpacity>
+              );
+            })}
 
             {/* Actions */}
             <View style={styles.actionsRow}>
@@ -425,6 +468,11 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 2,
   },
+  dayCardCompleted: {
+    backgroundColor: '#F0FFF4',
+    borderWidth: 1.5,
+    borderColor: '#30D158',
+  },
   dayIndex: {
     width: 40,
     height: 40,
@@ -450,6 +498,19 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#8E8E93',
     marginTop: 2,
+  },
+  completedBadge: {
+    backgroundColor: '#E8F5E9',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+    marginTop: 6,
+  },
+  completedBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#30D158',
   },
   arrow: {
     fontSize: 22,

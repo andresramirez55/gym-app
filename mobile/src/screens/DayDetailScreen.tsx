@@ -37,12 +37,70 @@ export default function DayDetailScreen({ route, navigation }: Props) {
   const [completedExercises, setCompletedExercises] = useState<Set<number>>(new Set());
   const [restTimer, setRestTimer] = useState<{ exerciseId: number; timeLeft: number } | null>(null);
   const [lastSession, setLastSession] = useState<{ [exerciseName: string]: SetLog[] }>({});
+  const [progressionReady, setProgressionReady] = useState<{ [exerciseName: string]: { ready: boolean; suggestedIncrease: number } }>({});
   const [replacementModal, setReplacementModal] = useState<{ visible: boolean; exerciseId: number; exerciseName: string } | null>(null);
   const [exerciseInfoModal, setExerciseInfoModal] = useState<{ visible: boolean; exerciseName: string; info: ExerciseInfo | null; loading: boolean } | null>(null);
   const [restTimeModal, setRestTimeModal] = useState<{ visible: boolean; exerciseId: number; currentRestTime: number } | null>(null);
   const [newRestTime, setNewRestTime] = useState<string>('');
 
   const storageKey = `workout_progress_${day.id}`;
+
+  // Helper: determinar incremento sugerido según tipo de ejercicio
+  const getSuggestedWeightIncrease = (exerciseName: string): number => {
+    const name = exerciseName.toLowerCase();
+    // Ejercicios de piernas, pecho, espalda: +5kg
+    if (name.includes('sentadilla') || name.includes('squat') ||
+        name.includes('press banca') || name.includes('bench') ||
+        name.includes('peso muerto') || name.includes('deadlift') ||
+        name.includes('remo') || name.includes('row') ||
+        name.includes('prensa') || name.includes('leg press') ||
+        name.includes('hip thrust')) {
+      return 5;
+    }
+    // Ejercicios de brazos, hombros: +2.5kg
+    return 2.5;
+  };
+
+  // Helper: analizar si está listo para progresar (2 sesiones consecutivas completadas)
+  const analyzeProgression = (history: WorkoutLog[], currentExercises: typeof day.exercises) => {
+    const progressionMap: { [exerciseName: string]: { ready: boolean; suggestedIncrease: number } } = {};
+
+    for (const exercise of currentExercises) {
+      // Buscar las últimas 2 sesiones de este ejercicio
+      const sessions: { sets: SetLog[]; targetSets: number; targetReps: number }[] = [];
+
+      for (const log of history) {
+        const exLog = log.exercise_logs.find(ex => ex.exercise_name === exercise.name);
+        if (exLog && exLog.sets.length > 0) {
+          sessions.push({
+            sets: exLog.sets,
+            targetSets: exercise.sets,
+            targetReps: parseInt(exercise.reps) || 0
+          });
+          if (sessions.length === 2) break;
+        }
+      }
+
+      // Si tiene al menos 2 sesiones, verificar si completó todo
+      if (sessions.length >= 2) {
+        const allCompleted = sessions.every(session => {
+          // Verificó que hizo al menos targetSets series
+          if (session.sets.length < session.targetSets) return false;
+          // Verificó que cada serie tenga al menos targetReps reps
+          return session.sets.every(set => set.reps >= session.targetReps);
+        });
+
+        if (allCompleted) {
+          progressionMap[exercise.name] = {
+            ready: true,
+            suggestedIncrease: getSuggestedWeightIncrease(exercise.name)
+          };
+        }
+      }
+    }
+
+    return progressionMap;
+  };
 
   // Restore in-progress workout on mount + load last session
   useEffect(() => {
@@ -58,7 +116,7 @@ export default function DayDetailScreen({ route, navigation }: Props) {
       }
     });
 
-    // Load last session data for each exercise
+    // Load last session data + analyze progression readiness
     workoutApi.getHistory(user!.id, 10).then((history: WorkoutLog[]) => {
       const map: { [exerciseName: string]: SetLog[] } = {};
       for (const log of history) {
@@ -69,6 +127,10 @@ export default function DayDetailScreen({ route, navigation }: Props) {
         }
       }
       setLastSession(map);
+
+      // Analizar progresión
+      const progression = analyzeProgression(history, day.exercises);
+      setProgressionReady(progression);
     }).catch(() => {});
   }, []);
 
@@ -357,6 +419,15 @@ export default function DayDetailScreen({ route, navigation }: Props) {
                 )}
               </View>
 
+              {/* Progression suggestion badge */}
+              {progressionReady[exercise.name]?.ready && !isDone && (
+                <View style={styles.progressionBadge}>
+                  <Text style={styles.progressionBadgeText}>
+                    🎯 ¡Listo para subir! Intentá +{progressionReady[exercise.name].suggestedIncrease}kg hoy
+                  </Text>
+                </View>
+              )}
+
               {exercise.notes ? (
                 <View style={styles.notesRow}>
                   <Text style={styles.notesText}>💡 {exercise.notes}</Text>
@@ -587,14 +658,14 @@ export default function DayDetailScreen({ route, navigation }: Props) {
       {/* Rest Time Edit Modal */}
       <Modal
         visible={restTimeModal?.visible || false}
-        animationType="slide"
+        animationType="fade"
         transparent={true}
         onRequestClose={closeRestTimeModal}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+        <View style={styles.restTimeModalOverlay}>
+          <View style={styles.restTimeModalContent}>
             <Text style={styles.modalTitle}>Editar Tiempo de Descanso</Text>
-            <Text style={styles.modalSubtitle}>Ingresá el tiempo en segundos</Text>
+            <Text style={styles.restTimeModalSubtitle}>Ingresá el tiempo en segundos</Text>
 
             <TextInput
               style={styles.restTimeInput}
@@ -792,12 +863,12 @@ const styles = StyleSheet.create({
     padding: 16,
     fontSize: 18,
     textAlign: 'center',
-    marginVertical: 20,
+    marginBottom: 16,
   },
   quickRestButtons: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 24,
+    marginBottom: 20,
     gap: 8,
   },
   quickRestBtn: {
@@ -1036,6 +1107,27 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'flex-end',
   },
+  restTimeModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  restTimeModalContent: {
+    backgroundColor: 'white',
+    borderRadius: 24,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+  },
+  restTimeModalSubtitle: {
+    fontSize: 14,
+    color: '#8E8E93',
+    textAlign: 'center',
+    marginTop: 4,
+    marginBottom: 16,
+  },
   modalContent: {
     backgroundColor: 'white',
     borderTopLeftRadius: 24,
@@ -1200,5 +1292,49 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 15,
     fontWeight: 'bold',
+  },
+  progressionBadge: {
+    backgroundColor: '#FFF8EC',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: 12,
+    borderWidth: 1.5,
+    borderColor: '#FF9F0A',
+    borderStyle: 'solid',
+  },
+  progressionBadgeText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#FF9F0A',
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 4,
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  cancelButton: {
+    backgroundColor: '#F2F2F7',
+  },
+  cancelButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#8E8E93',
+  },
+  confirmButton: {
+    backgroundColor: PRIMARY,
+  },
+  confirmButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: 'white',
   },
 });
