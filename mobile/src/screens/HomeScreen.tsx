@@ -152,6 +152,10 @@ export default function HomeScreen({ navigation }: any) {
     ? Math.round((routine.week_number / routine.duration_weeks) * 100)
     : 0;
 
+  const isRoutineCompleted = routine
+    ? routine.week_number >= routine.duration_weeks || routine.days_remaining <= 0
+    : false;
+
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       <StatusBar barStyle="light-content" />
@@ -207,6 +211,24 @@ export default function HomeScreen({ navigation }: any) {
                 <Text style={styles.progressPct}>{progressPct}% completado</Text>
               </View>
             </View>
+
+            {/* Routine Completion Banner */}
+            {isRoutineCompleted && (
+              <View style={styles.completionBanner}>
+                <Text style={styles.completionIcon}>🎉</Text>
+                <Text style={styles.completionTitle}>¡Rutina completada!</Text>
+                <Text style={styles.completionText}>
+                  Completaste todas las semanas de tu rutina actual. ¿Listo para generar una nueva?
+                </Text>
+                <TouchableOpacity
+                  style={styles.completionButton}
+                  onPress={handleGenerateRoutine}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.completionButtonText}>✨ Generar nueva rutina</Text>
+                </TouchableOpacity>
+              </View>
+            )}
 
             {/* Weekly Summary */}
             {weekStats && weekStats.sessions > 0 && (
@@ -639,5 +661,54 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginBottom: 24,
     fontSize: 12,
+  },
+  completionBanner: {
+    backgroundColor: '#FFFBF0',
+    borderRadius: 20,
+    padding: 24,
+    marginBottom: 24,
+    borderWidth: 2,
+    borderColor: '#FFD700',
+    alignItems: 'center',
+    shadowColor: '#FFD700',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  completionIcon: {
+    fontSize: 56,
+    marginBottom: 12,
+  },
+  completionTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#1C1C1E',
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  completionText: {
+    fontSize: 15,
+    color: '#6E6E73',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 20,
+  },
+  completionButton: {
+    backgroundColor: PRIMARY,
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 28,
+    alignItems: 'center',
+    shadowColor: PRIMARY,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  completionButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 });
