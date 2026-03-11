@@ -16,7 +16,15 @@
       "Bash(git rm:*)",
       "Bash(git commit:*)",
       "Bash(git push:*)",
-      "Bash(timeout:*)"
+      "Bash(timeout:*)",
+      "Bash(npx eas update:list:*)",
+      "Bash(npx eas secret:create:*)",
+      "Bash(cat:*)",
+      "Bash(grep:*)",
+      "Bash(npx eas build:*)",
+      "Bash(npx eas-cli update --branch preview --message \"Agregar banner de rutina completada y persistencia de timer de descanso\")",
+      "Bash(npx eas-cli update --branch preview --message \"Agregar vista de calendario con streak tracking y navegación mensual\")",
+      "Bash(npx eas-cli update:*)"
     ]
   }
 }

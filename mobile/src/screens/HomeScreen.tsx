@@ -10,9 +10,11 @@ import {
   StatusBar,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { AnimatedCircularProgress } from 'react-native-circular-progress';
 import { useAuth } from '../contexts/AuthContext';
 import { routineApi, workoutApi } from '../services/api';
-import type { Routine, WorkoutLog } from '../types';
+import type { Routine, WorkoutLog, Exercise, SetLog } from '../types';
 
 const PRIMARY = '#5E5CE6';
 
@@ -21,6 +23,29 @@ const GOAL_LABELS: Record<string, string> = {
   lose_weight: '🔥 Perder peso',
   strength: '🏋️ Fuerza',
   endurance: '🏃 Resistencia',
+};
+
+const GOAL_GRADIENTS: Record<string, { colors: string[]; start: [number, number]; end: [number, number] }> = {
+  gain_muscle: {
+    colors: ['#5E5CE6', '#8E8CE6', '#BF5AF2'],
+    start: [0, 0],
+    end: [1, 1],
+  },
+  lose_weight: {
+    colors: ['#FF6B35', '#FF8F35', '#FFB135'],
+    start: [0, 0],
+    end: [1, 1],
+  },
+  strength: {
+    colors: ['#64D2FF', '#5E9CE6', '#5E5CE6'],
+    start: [0, 0],
+    end: [1, 1],
+  },
+  endurance: {
+    colors: ['#30D158', '#4DDB6F', '#6FE587'],
+    start: [0, 0],
+    end: [1, 1],
+  },
 };
 
 function getWeekStart(): Date {
@@ -33,6 +58,53 @@ function getWeekStart(): Date {
   return monday;
 }
 
+interface ExerciseCardProps {
+  exercise: Exercise;
+  lastSessionData?: SetLog[];
+  color: string;
+}
+
+function ExerciseCard({ exercise, lastSessionData, color }: ExerciseCardProps) {
+  const hasLastSession = lastSessionData && lastSessionData.length > 0;
+  const lastWeight = hasLastSession ? Math.max(...lastSessionData.map(s => s.weight || 0)) : null;
+  const lastReps = hasLastSession ? Math.max(...lastSessionData.map(s => s.reps || 0)) : null;
+
+  return (
+    <View style={styles.exerciseCard}>
+      <View style={styles.exerciseCardHeader}>
+        <View style={[styles.exerciseIconBadge, { backgroundColor: `${color}20` }]}>
+          <Text style={styles.exerciseIcon}>💪</Text>
+        </View>
+        <View style={styles.exerciseCardInfo}>
+          <Text style={styles.exerciseCardName} numberOfLines={1}>
+            {exercise.name}
+          </Text>
+          <Text style={styles.exerciseCardMeta}>
+            {exercise.sets} series × {exercise.reps} reps
+          </Text>
+        </View>
+      </View>
+
+      {hasLastSession && (
+        <View style={styles.lastSessionBadge}>
+          <Text style={styles.lastSessionLabel}>Última sesión:</Text>
+          <Text style={styles.lastSessionValue}>
+            {lastWeight}kg × {lastReps} reps
+          </Text>
+        </View>
+      )}
+
+      {exercise.rest_seconds > 0 && (
+        <View style={styles.restTimeBadge}>
+          <Text style={styles.restTimeText}>
+            ⏱️ {exercise.rest_seconds}s descanso
+          </Text>
+        </View>
+      )}
+    </View>
+  );
+}
+
 export default function HomeScreen({ navigation }: any) {
   const { user, signOut } = useAuth();
   const [routine, setRoutine] = useState<Routine | null>(null);
@@ -43,42 +115,60 @@ export default function HomeScreen({ navigation }: any) {
     volume: number;
     days: number[]; // 0=Mon .. 6=Sun
   } | null>(null);
-  const [todayCompletedDays, setTodayCompletedDays] = useState<Set<number>>(new Set());
+  const [weekCompletedDays, setWeekCompletedDays] = useState<Map<number, Date[]>>(new Map());
+  const [exerciseHistory, setExerciseHistory] = useState<Map<string, SetLog[]>>(new Map());
 
   useEffect(() => {
     if (user) {
       loadRoutine();
       loadWeekStats();
-      loadTodayWorkouts();
+      loadWeekCompletedDays();
+      loadExerciseHistory();
     }
   }, [user]);
 
-  // Refrescar workouts de hoy cuando la pantalla recibe focus
+  // Refrescar datos cuando la pantalla recibe focus
   useFocusEffect(
     React.useCallback(() => {
       if (user) {
-        loadTodayWorkouts();
+        loadWeekCompletedDays();
         loadWeekStats();
+        loadExerciseHistory();
       }
     }, [user])
   );
 
-  const loadTodayWorkouts = async () => {
+  const loadWeekCompletedDays = async () => {
     try {
-      const history: WorkoutLog[] = await workoutApi.getHistory(user!.id, 10);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+      const history: WorkoutLog[] = await workoutApi.getHistory(user!.id, 30);
+      const weekStart = getWeekStart();
+      const thisWeek = history.filter(log => new Date(log.completed_at) >= weekStart);
 
-      // Filtrar workouts de hoy
-      const todayWorkouts = history.filter(log => {
-        const logDate = new Date(log.completed_at);
-        logDate.setHours(0, 0, 0, 0);
-        return logDate.getTime() === today.getTime();
+      const map = new Map<number, Date[]>();
+      thisWeek.forEach(log => {
+        const dates = map.get(log.routine_day_id) || [];
+        dates.push(new Date(log.completed_at));
+        map.set(log.routine_day_id, dates);
       });
 
-      // Extraer routine_day_id de los workouts de hoy
-      const completedDayIds = new Set(todayWorkouts.map(log => log.routine_day_id));
-      setTodayCompletedDays(completedDayIds);
+      setWeekCompletedDays(map);
+    } catch (_) {}
+  };
+
+  const loadExerciseHistory = async () => {
+    try {
+      const history: WorkoutLog[] = await workoutApi.getHistory(user!.id, 10);
+      const map = new Map<string, SetLog[]>();
+
+      history.forEach(log => {
+        log.exercise_logs.forEach(exLog => {
+          if (!map.has(exLog.exercise_name) && exLog.sets.length > 0) {
+            map.set(exLog.exercise_name, exLog.sets);
+          }
+        });
+      });
+
+      setExerciseHistory(map);
     } catch (_) {}
   };
 
@@ -210,30 +300,53 @@ export default function HomeScreen({ navigation }: any) {
         ) : (
           <>
             {/* Routine Info Card */}
-            <View style={styles.routineCard}>
-              <Text style={styles.routineName}>{routine.name}</Text>
-              <Text style={styles.routineDesc}>{routine.description}</Text>
+            <LinearGradient
+              colors={GOAL_GRADIENTS[routine.goal]?.colors as any || GOAL_GRADIENTS.gain_muscle.colors as any}
+              start={GOAL_GRADIENTS[routine.goal]?.start || [0, 0]}
+              end={GOAL_GRADIENTS[routine.goal]?.end || [1, 1]}
+              style={styles.routineCardGradient}
+            >
+              <View style={styles.routineCardContent}>
+                <Text style={styles.routineName}>{routine.name}</Text>
+                <Text style={styles.routineDesc}>{routine.description}</Text>
 
-              {/* Progress */}
-              <View style={styles.progressSection}>
-                <View style={styles.progressRow}>
-                  <Text style={styles.progressWeek}>
-                    Semana {routine.week_number} de {routine.duration_weeks}
-                  </Text>
-                  <Text style={styles.progressDays}>
-                    {routine.days_remaining > 0
-                      ? `${routine.days_remaining} ${routine.days_remaining === 1 ? 'workout' : 'workouts'} restantes`
-                      : isRoutineCompleted
-                        ? 'Completada'
-                        : 'En progreso'}
-                  </Text>
+                {/* Progress */}
+                <View style={styles.progressSection}>
+                  <View style={styles.progressCircleRow}>
+                    <AnimatedCircularProgress
+                      size={100}
+                      width={8}
+                      fill={progressPct}
+                      tintColor={GOAL_GRADIENTS[routine.goal]?.colors[0] || PRIMARY}
+                      backgroundColor="#E5E5EA"
+                      rotation={0}
+                      lineCap="round"
+                      duration={800}
+                    >
+                      {(fill: number) => (
+                        <View style={styles.progressCircleContent}>
+                          <Text style={styles.progressCirclePct}>{Math.round(fill)}%</Text>
+                          <Text style={styles.progressCircleLabel}>completo</Text>
+                        </View>
+                      )}
+                    </AnimatedCircularProgress>
+
+                    <View style={styles.progressTextContainer}>
+                      <Text style={styles.progressWeek}>
+                        Semana {routine.week_number} de {routine.duration_weeks}
+                      </Text>
+                      <Text style={styles.progressDays}>
+                        {routine.days_remaining > 0
+                          ? `${routine.days_remaining} ${routine.days_remaining === 1 ? 'workout' : 'workouts'} restantes`
+                          : isRoutineCompleted
+                            ? 'Completada'
+                            : 'En progreso'}
+                      </Text>
+                    </View>
+                  </View>
                 </View>
-                <View style={styles.progressBarBg}>
-                  <View style={[styles.progressBarFill, { width: `${progressPct}%` as any }]} />
-                </View>
-                <Text style={styles.progressPct}>{progressPct}% completado</Text>
               </View>
-            </View>
+            </LinearGradient>
 
             {/* Routine Completion Banner */}
             {isRoutineCompleted && (
@@ -296,26 +409,52 @@ export default function HomeScreen({ navigation }: any) {
             <Text style={styles.sectionTitle}>Días de entrenamiento</Text>
 
             {routine.days.map((day, index) => {
-              const isCompletedToday = todayCompletedDays.has(day.id);
+              const completionDates = weekCompletedDays.get(day.id) || [];
+              const completionCount = completionDates.length;
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
+              const isCompletedToday = completionDates.some(date => {
+                const completionDate = new Date(date);
+                completionDate.setHours(0, 0, 0, 0);
+                return completionDate.getTime() === today.getTime();
+              });
+              const hasCompletions = completionCount > 0;
+
               return (
                 <TouchableOpacity
                   key={day.id}
-                  style={[styles.dayCard, isCompletedToday && styles.dayCardCompleted]}
+                  style={[
+                    styles.dayCard,
+                    hasCompletions && styles.dayCardWithCompletions,
+                    isCompletedToday && styles.dayCardCompletedToday
+                  ]}
                   onPress={() => navigation.navigate('DayDetail', { day, routineId: routine.id })}
                   activeOpacity={0.75}
                 >
                   <View style={[
                     styles.dayIndex,
-                    { backgroundColor: isCompletedToday ? '#30D158' : DAY_COLORS[index % DAY_COLORS.length] }
+                    { backgroundColor: hasCompletions ? '#30D158' : DAY_COLORS[index % DAY_COLORS.length] }
                   ]}>
-                    <Text style={styles.dayIndexText}>{isCompletedToday ? '✓' : index + 1}</Text>
+                    <Text style={styles.dayIndexText}>{hasCompletions ? '✓' : index + 1}</Text>
                   </View>
                   <View style={styles.dayInfo}>
                     <Text style={styles.dayName}>{day.day_name}</Text>
                     <Text style={styles.dayExercises}>{day.exercises.length} ejercicios</Text>
+
+                    {hasCompletions && (
+                      <View style={styles.completionIndicatorRow}>
+                        {Array.from({ length: completionCount }).map((_, i) => (
+                          <View key={i} style={styles.completionDot} />
+                        ))}
+                        <Text style={styles.completionCountText}>
+                          {completionCount}x esta semana
+                        </Text>
+                      </View>
+                    )}
+
                     {isCompletedToday && (
-                      <View style={styles.completedBadge}>
-                        <Text style={styles.completedBadgeText}>Completado hoy</Text>
+                      <View style={styles.completedTodayBadge}>
+                        <Text style={styles.completedTodayBadgeText}>Completado hoy</Text>
                       </View>
                     )}
                   </View>
@@ -323,6 +462,38 @@ export default function HomeScreen({ navigation }: any) {
                 </TouchableOpacity>
               );
             })}
+
+            {/* Exercise Preview */}
+            {routine.days.length > 0 && routine.days[0].exercises.length > 0 && (
+              <>
+                <Text style={styles.sectionTitle}>Vista previa de ejercicios</Text>
+                <View style={styles.exerciseCardsContainer}>
+                  {routine.days[0].exercises.slice(0, 4).map((ex, i) => (
+                    <ExerciseCard
+                      key={ex.id}
+                      exercise={ex}
+                      lastSessionData={exerciseHistory.get(ex.name)}
+                      color={DAY_COLORS[i % DAY_COLORS.length]}
+                    />
+                  ))}
+                  {routine.days[0].exercises.length > 4 && (
+                    <TouchableOpacity
+                      style={styles.seeMoreCard}
+                      onPress={() => navigation.navigate('DayDetail', {
+                        day: routine.days[0],
+                        routineId: routine.id
+                      })}
+                      activeOpacity={0.75}
+                    >
+                      <Text style={styles.seeMoreText}>
+                        +{routine.days[0].exercises.length - 4} ejercicios más
+                      </Text>
+                      <Text style={styles.seeMoreArrow}>›</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </>
+            )}
 
             {/* Actions */}
             <View style={styles.actionsRow}>
@@ -441,16 +612,20 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     marginBottom: 28,
   },
-  routineCard: {
-    backgroundColor: 'white',
+  routineCardGradient: {
     borderRadius: 20,
-    padding: 20,
     marginBottom: 24,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 6,
+  },
+  routineCardContent: {
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    borderRadius: 20,
+    padding: 20,
+    margin: 2,
   },
   routineName: {
     fontSize: 20,
@@ -469,37 +644,39 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 14,
   },
-  progressRow: {
+  progressCircleRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10,
+    gap: 20,
+  },
+  progressCircleContent: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  progressCirclePct: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#1C1C1E',
+  },
+  progressCircleLabel: {
+    fontSize: 11,
+    color: '#8E8E93',
+    marginTop: 2,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  progressTextContainer: {
+    flex: 1,
   },
   progressWeek: {
     fontSize: 14,
     fontWeight: '700',
     color: PRIMARY,
+    marginBottom: 4,
   },
   progressDays: {
     fontSize: 12,
     color: '#8E8E93',
-  },
-  progressBarBg: {
-    height: 8,
-    backgroundColor: '#DDDDE6',
-    borderRadius: 4,
-    overflow: 'hidden',
-    marginBottom: 8,
-  },
-  progressBarFill: {
-    height: 8,
-    backgroundColor: PRIMARY,
-    borderRadius: 4,
-  },
-  progressPct: {
-    fontSize: 11,
-    color: '#8E8E93',
-    textAlign: 'right',
   },
   sectionTitle: {
     fontSize: 18,
@@ -565,6 +742,137 @@ const styles = StyleSheet.create({
     color: '#30D158',
   },
   arrow: {
+    fontSize: 22,
+    color: '#C7C7CC',
+    fontWeight: '300',
+  },
+  dayCardWithCompletions: {
+    borderWidth: 1.5,
+    borderColor: '#C6F6D5',
+    backgroundColor: '#F9FFF9',
+  },
+  dayCardCompletedToday: {
+    backgroundColor: '#F0FFF4',
+    borderColor: '#30D158',
+  },
+  completionIndicatorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
+    gap: 4,
+  },
+  completionDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#30D158',
+  },
+  completionCountText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#30D158',
+    marginLeft: 4,
+  },
+  completedTodayBadge: {
+    backgroundColor: '#D1FAE5',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+    marginTop: 4,
+  },
+  completedTodayBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#059669',
+  },
+  exerciseCardsContainer: {
+    gap: 10,
+    marginBottom: 24,
+  },
+  exerciseCard: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  exerciseCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 10,
+  },
+  exerciseIconBadge: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  exerciseIcon: {
+    fontSize: 20,
+  },
+  exerciseCardInfo: {
+    flex: 1,
+  },
+  exerciseCardName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1C1C1E',
+    marginBottom: 2,
+  },
+  exerciseCardMeta: {
+    fontSize: 13,
+    color: '#8E8E93',
+  },
+  lastSessionBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#F2F2F7',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  lastSessionLabel: {
+    fontSize: 11,
+    color: '#8E8E93',
+    fontWeight: '600',
+  },
+  lastSessionValue: {
+    fontSize: 13,
+    color: '#1C1C1E',
+    fontWeight: '700',
+  },
+  restTimeBadge: {
+    alignSelf: 'flex-start',
+  },
+  restTimeText: {
+    fontSize: 12,
+    color: '#6E6E73',
+  },
+  seeMoreCard: {
+    backgroundColor: '#F8F8F9',
+    borderRadius: 16,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1.5,
+    borderColor: '#E5E5EA',
+    borderStyle: 'dashed',
+  },
+  seeMoreText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#6E6E73',
+  },
+  seeMoreArrow: {
     fontSize: 22,
     color: '#C7C7CC',
     fontWeight: '300',
