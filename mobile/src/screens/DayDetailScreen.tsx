@@ -36,7 +36,8 @@ export default function DayDetailScreen({ route, navigation }: Props) {
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [sets, setSets] = useState<{ [exerciseId: number]: SetLog[] }>({});
   const [completedExercises, setCompletedExercises] = useState<Set<number>>(new Set());
-  const [restTimer, setRestTimer] = useState<{ exerciseId: number; timeLeft: number } | null>(null);
+  const [restTimer, setRestTimer] = useState<{ exerciseId: number; endTime: number } | null>(null);
+  const [restTimerTick, setRestTimerTick] = useState(0);
   const [lastSession, setLastSession] = useState<{ [exerciseName: string]: SetLog[] }>({});
   const [progressionReady, setProgressionReady] = useState<{ [exerciseName: string]: { ready: boolean; suggestedIncrease: number } }>({});
   const [replacementModal, setReplacementModal] = useState<{ visible: boolean; exerciseId: number; exerciseName: string } | null>(null);
@@ -120,6 +121,13 @@ export default function DayDetailScreen({ route, navigation }: Props) {
             const elapsed = Math.floor((new Date().getTime() - restoredStartTime.getTime()) / 1000);
             setElapsedSeconds(elapsed);
           }
+          if (parsed.restTimer) {
+            // Restaurar rest timer si aún no terminó
+            const now = new Date().getTime();
+            if (parsed.restTimer.endTime > now) {
+              setRestTimer(parsed.restTimer);
+            }
+          }
         } catch (_) {}
       }
     });
@@ -142,7 +150,7 @@ export default function DayDetailScreen({ route, navigation }: Props) {
     }).catch(() => {});
   }, []);
 
-  // Auto-save whenever sets, completedExercises, or startTime change
+  // Auto-save whenever sets, completedExercises, startTime, or restTimer change
   useEffect(() => {
     AsyncStorage.setItem(
       storageKey,
@@ -150,9 +158,10 @@ export default function DayDetailScreen({ route, navigation }: Props) {
         sets,
         completedExercises: Array.from(completedExercises),
         startTime: startTime?.getTime() || null,
+        restTimer: restTimer || null,
       })
     );
-  }, [sets, completedExercises, startTime]);
+  }, [sets, completedExercises, startTime, restTimer]);
 
   // Workout timer - update every second
   useEffect(() => {
@@ -166,23 +175,34 @@ export default function DayDetailScreen({ route, navigation }: Props) {
     return () => clearInterval(interval);
   }, [startTime]);
 
-  // Rest timer countdown
+  // Rest timer countdown - update every second
   useEffect(() => {
     if (!restTimer) return;
-    if (restTimer.timeLeft <= 0) {
-      Vibration.vibrate([0, 400, 200, 400]);
-      Alert.alert('¡Listo!', '¡Tiempo de descanso terminado!');
-      setRestTimer(null);
-      return;
-    }
-    const interval = setInterval(() => {
-      setRestTimer(prev => prev ? { ...prev, timeLeft: prev.timeLeft - 1 } : null);
-    }, 1000);
+
+    const checkTimer = () => {
+      const now = new Date().getTime();
+      const timeLeft = Math.max(0, Math.floor((restTimer.endTime - now) / 1000));
+
+      if (timeLeft <= 0) {
+        Vibration.vibrate([0, 400, 200, 400]);
+        Alert.alert('¡Listo!', '¡Tiempo de descanso terminado!');
+        setRestTimer(null);
+      } else {
+        setRestTimerTick(prev => prev + 1); // Force re-render
+      }
+    };
+
+    // Check immediately
+    checkTimer();
+
+    // Then check every second
+    const interval = setInterval(checkTimer, 1000);
     return () => clearInterval(interval);
   }, [restTimer]);
 
   const startRest = (exerciseId: number, seconds: number) => {
-    setRestTimer({ exerciseId, timeLeft: seconds });
+    const endTime = new Date().getTime() + (seconds * 1000);
+    setRestTimer({ exerciseId, endTime });
   };
 
   const cancelRest = () => setRestTimer(null);
@@ -408,6 +428,11 @@ export default function DayDetailScreen({ route, navigation }: Props) {
           const isResting = restTimer?.exerciseId === exercise.id;
           const isDone = completedExercises.has(exercise.id);
 
+          // Calculate rest time left dynamically
+          const restTimeLeft = isResting && restTimer
+            ? Math.max(0, Math.floor((restTimer.endTime - new Date().getTime()) / 1000))
+            : 0;
+
           return (
             <View
               key={exercise.id}
@@ -541,7 +566,7 @@ export default function DayDetailScreen({ route, navigation }: Props) {
                   {/* Rest Timer */}
                   {isResting ? (
                     <View style={styles.timerBox}>
-                      <Text style={styles.timerTime}>{formatTime(restTimer!.timeLeft)}</Text>
+                      <Text style={styles.timerTime}>{formatTime(restTimeLeft)}</Text>
                       <Text style={styles.timerLabel}>DESCANSANDO</Text>
                       <TouchableOpacity style={styles.cancelTimerBtn} onPress={cancelRest}>
                         <Text style={styles.cancelTimerText}>Cancelar</Text>
