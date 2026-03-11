@@ -107,6 +107,13 @@ export default function HomeScreen({ navigation }: any) {
   const loadRoutine = async () => {
     try {
       const activeRoutine = await routineApi.getActive(user!.id);
+      console.log('📋 Routine loaded:', {
+        name: activeRoutine.name,
+        week_number: activeRoutine.week_number,
+        duration_weeks: activeRoutine.duration_weeks,
+        days_remaining: activeRoutine.days_remaining,
+        isCompleted: activeRoutine.week_number >= activeRoutine.duration_weeks,
+      });
       setRoutine(activeRoutine);
     } catch (error) {
       setRoutine(null);
@@ -163,8 +170,9 @@ export default function HomeScreen({ navigation }: any) {
     ? Math.round((routine.week_number / routine.duration_weeks) * 100)
     : 0;
 
+  // Solo mostrar banner de completado si realmente completaste múltiples semanas
   const isRoutineCompleted = routine
-    ? routine.week_number >= routine.duration_weeks
+    ? routine.week_number > 1 && routine.week_number >= routine.duration_weeks
     : false;
 
   return (
@@ -213,7 +221,9 @@ export default function HomeScreen({ navigation }: any) {
                   <Text style={styles.progressDays}>
                     {routine.days_remaining > 0
                       ? `${routine.days_remaining}d restantes`
-                      : 'Cambiando rutina...'}
+                      : routine.week_number >= routine.duration_weeks
+                        ? 'Rutina completada'
+                        : `${routine.days_remaining}d restantes`}
                   </Text>
                 </View>
                 <View style={styles.progressBarBg}>
