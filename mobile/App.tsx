@@ -9,6 +9,7 @@ import HomeScreen from './src/screens/HomeScreen';
 import DayDetailScreen from './src/screens/DayDetailScreen';
 import HistoryScreen from './src/screens/HistoryScreen';
 import ProgressScreen from './src/screens/ProgressScreen';
+import CalendarScreen from './src/screens/CalendarScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -44,6 +45,11 @@ function AppNavigator() {
             <Stack.Screen
               name="Progress"
               component={ProgressScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="Calendar"
+              component={CalendarScreen}
               options={{ headerShown: false }}
             />
           </>

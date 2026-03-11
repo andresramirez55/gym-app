@@ -312,6 +312,13 @@ export default function HomeScreen({ navigation }: any) {
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.secondaryButton, { flex: 1 }]}
+                onPress={() => navigation.navigate('Calendar')}
+                activeOpacity={0.75}
+              >
+                <Text style={styles.secondaryButtonText}>📅 Calendario</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.secondaryButton, { flex: 1 }]}
                 onPress={() => navigation.navigate('Progress')}
                 activeOpacity={0.75}
               >
