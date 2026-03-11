@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/andresramirez/gym-app/internal/domain"
 	"github.com/andresramirez/gym-app/internal/dto"
@@ -13,12 +12,14 @@ import (
 type routineServiceWithTemplates struct {
 	routineRepo  repository.RoutineRepository
 	templateRepo repository.RoutineTemplateRepository
+	workoutRepo  repository.WorkoutRepository
 }
 
-func NewRoutineServiceWithTemplates(routineRepo repository.RoutineRepository, templateRepo repository.RoutineTemplateRepository) RoutineService {
+func NewRoutineServiceWithTemplates(routineRepo repository.RoutineRepository, templateRepo repository.RoutineTemplateRepository, workoutRepo repository.WorkoutRepository) RoutineService {
 	return &routineServiceWithTemplates{
 		routineRepo:  routineRepo,
 		templateRepo: templateRepo,
+		workoutRepo:  workoutRepo,
 	}
 }
 
@@ -125,32 +126,32 @@ func (s *routineServiceWithTemplates) GetActiveRoutineByUserID(ctx context.Conte
 		return nil, fmt.Errorf("no active routine found: %w", err)
 	}
 
-	// Check if routine has expired and needs rotation
-	durationDays := routine.DurationWeeks * 7
-	daysElapsed := int(time.Since(routine.CreatedAt).Hours() / 24)
-	daysRemaining := durationDays - daysElapsed
-
-	if daysRemaining <= 0 {
-		// Rotate: generate a new routine with a different template
-		newRoutine, rotateErr := s.GenerateRoutineForUser(ctx, &dto.GenerateRoutineRequest{
-			UserID:    userID,
-			Goal:      routine.Goal,
-			Frequency: routine.Frequency,
-		})
-		if rotateErr == nil {
-			return newRoutine, nil
-		}
-		// If rotation fails, keep current routine
-		daysRemaining = 0
+	// Count workouts completed for this routine
+	workoutCount, err := s.workoutRepo.CountWorkoutsByRoutineID(ctx, routine.ID)
+	if err != nil {
+		// If error counting, default to 0 workouts
+		workoutCount = 0
 	}
 
-	// Calculate week info
-	weekNumber := (daysElapsed / 7) + 1
+	// Calculate week based on workouts completed
+	// weekNumber = (workouts / frequency) + 1
+	// Example: frequency=3, completed 5 workouts → week 2 (5/3 = 1, +1 = 2)
+	frequency := int(routine.Frequency)
+	if frequency == 0 {
+		frequency = 1 // Safety check
+	}
+
+	weekNumber := (workoutCount / frequency) + 1
 	if weekNumber > routine.DurationWeeks {
 		weekNumber = routine.DurationWeeks
 	}
+
+	// Calculate workouts remaining in current week
+	workoutsInCurrentWeek := workoutCount % frequency
+	workoutsRemainingInWeek := frequency - workoutsInCurrentWeek
+
 	routine.WeekNumber = weekNumber
-	routine.DaysRemaining = daysRemaining
+	routine.DaysRemaining = workoutsRemainingInWeek
 
 	// Load days
 	days, err := s.routineRepo.GetDaysByRoutineID(ctx, routine.ID)

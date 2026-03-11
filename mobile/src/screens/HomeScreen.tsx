@@ -222,7 +222,7 @@ export default function HomeScreen({ navigation }: any) {
                   </Text>
                   <Text style={styles.progressDays}>
                     {routine.days_remaining > 0
-                      ? `${routine.days_remaining}d restantes`
+                      ? `${routine.days_remaining} ${routine.days_remaining === 1 ? 'workout' : 'workouts'} restantes`
                       : isRoutineCompleted
                         ? 'Completada'
                         : 'En progreso'}

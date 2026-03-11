@@ -15,6 +15,7 @@ type WorkoutRepository interface {
 	GetExerciseLogsByWorkoutID(ctx context.Context, workoutID int64) ([]domain.ExerciseLog, error)
 	GetSetLogsByExerciseLogID(ctx context.Context, exerciseLogID int64) ([]domain.SetLog, error)
 	GetWeightHistoryByExercise(ctx context.Context, userID, exerciseID int64) ([]domain.SetLog, error)
+	CountWorkoutsByRoutineID(ctx context.Context, routineID int64) (int, error)
 	DeleteWorkoutLog(ctx context.Context, id, userID int64) error
 	DeleteAllWorkoutLogs(ctx context.Context, userID int64) error
 }
@@ -134,6 +135,13 @@ func (r *workoutRepository) GetSetLogsByExerciseLogID(ctx context.Context, exerc
 		logs = append(logs, log)
 	}
 	return logs, rows.Err()
+}
+
+func (r *workoutRepository) CountWorkoutsByRoutineID(ctx context.Context, routineID int64) (int, error) {
+	var count int
+	query := `SELECT COUNT(*) FROM workout_logs WHERE routine_id = $1`
+	err := r.db.QueryRowContext(ctx, query, routineID).Scan(&count)
+	return count, err
 }
 
 func (r *workoutRepository) DeleteWorkoutLog(ctx context.Context, id, userID int64) error {

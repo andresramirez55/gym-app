@@ -37,7 +37,7 @@ func main() {
 
 	// Initialize services
 	userService := service.NewUserService(userRepo)
-	routineService := service.NewRoutineServiceWithTemplates(routineRepo, routineTemplateRepo)
+	routineService := service.NewRoutineServiceWithTemplates(routineRepo, routineTemplateRepo, workoutRepo)
 	workoutService := service.NewWorkoutService(workoutRepo, routineRepo)
 
 	// Initialize handlers
