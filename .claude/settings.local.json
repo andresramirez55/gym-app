@@ -24,7 +24,8 @@
       "Bash(npx eas build:*)",
       "Bash(npx eas-cli update --branch preview --message \"Agregar banner de rutina completada y persistencia de timer de descanso\")",
       "Bash(npx eas-cli update --branch preview --message \"Agregar vista de calendario con streak tracking y navegación mensual\")",
-      "Bash(npx eas-cli update:*)"
+      "Bash(npx eas-cli update:*)",
+      "Bash(echo:*)"
     ]
   }
 }

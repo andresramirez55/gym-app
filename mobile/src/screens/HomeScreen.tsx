@@ -521,12 +521,20 @@ export default function HomeScreen({ navigation }: any) {
             </View>
 
             <TouchableOpacity style={styles.generateButton} onPress={confirmGenerateRoutine} activeOpacity={0.75}>
-              <Text style={styles.generateButtonText}>✨ Generar nueva rutina</Text>
+              <View style={styles.generateButtonContent}>
+                <Text style={styles.generateButtonIcon}>✨</Text>
+                <Text style={styles.generateButtonText}>Generar nueva rutina</Text>
+              </View>
             </TouchableOpacity>
           </>
         )}
 
-        <Text style={styles.credits}>Creado por Andres Ramirez</Text>
+        <View style={styles.footer}>
+          <View style={styles.footerDivider} />
+          <Text style={styles.credits}>
+            Hecho con <Text style={styles.creditsHeart}>♥</Text> por Andres Ramirez
+          </Text>
+        </View>
       </View>
     </ScrollView>
   );
@@ -916,25 +924,31 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   generateButton: {
-    backgroundColor: 'white',
-    borderRadius: 14,
-    padding: 16,
+    backgroundColor: PRIMARY,
+    borderRadius: 16,
+    padding: 18,
     alignItems: 'center',
-    marginTop: 4,
-    marginBottom: 12,
-    borderWidth: 2,
-    borderColor: PRIMARY,
-    borderStyle: 'dashed',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    marginTop: 8,
+    marginBottom: 16,
+    shadowColor: PRIMARY,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  generateButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  generateButtonIcon: {
+    fontSize: 18,
   },
   generateButtonText: {
-    color: PRIMARY,
-    fontSize: 15,
-    fontWeight: '600',
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+    letterSpacing: 0.3,
   },
   weekCard: {
     backgroundColor: 'white',
@@ -1004,12 +1018,28 @@ const styles = StyleSheet.create({
   weekDayTextActive: {
     color: 'white',
   },
+  footer: {
+    alignItems: 'center',
+    marginTop: 16,
+    marginBottom: 32,
+  },
+  footerDivider: {
+    width: 60,
+    height: 2,
+    backgroundColor: '#EBEBF0',
+    borderRadius: 1,
+    marginBottom: 16,
+  },
   credits: {
-    color: '#C0C0C8',
+    color: '#8E8E93',
     textAlign: 'center',
-    marginTop: 8,
-    marginBottom: 24,
-    fontSize: 12,
+    fontSize: 13,
+    fontWeight: '500',
+    letterSpacing: 0.2,
+  },
+  creditsHeart: {
+    color: '#FF6B6B',
+    fontSize: 14,
   },
   completionBanner: {
     backgroundColor: '#FFFBF0',
