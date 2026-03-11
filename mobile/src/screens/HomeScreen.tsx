@@ -153,7 +153,7 @@ export default function HomeScreen({ navigation }: any) {
     : 0;
 
   const isRoutineCompleted = routine
-    ? routine.week_number >= routine.duration_weeks || routine.days_remaining <= 0
+    ? routine.week_number >= routine.duration_weeks
     : false;
 
   return (
