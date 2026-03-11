@@ -166,13 +166,15 @@ export default function HomeScreen({ navigation }: any) {
     );
   }
 
-  const progressPct = routine
-    ? Math.round((routine.week_number / routine.duration_weeks) * 100)
+  const progressPct = routine && routine.duration_weeks > 0
+    ? Math.min(100, Math.max(0, Math.round((routine.week_number / routine.duration_weeks) * 100)))
     : 0;
 
-  // Solo mostrar banner de completado si realmente completaste múltiples semanas
+  // Solo mostrar banner si los valores son válidos Y realmente completaste
   const isRoutineCompleted = routine
-    ? routine.week_number > 1 && routine.week_number >= routine.duration_weeks
+    ? routine.week_number >= 1 &&
+      routine.duration_weeks > 0 &&
+      routine.week_number > routine.duration_weeks // Pasaste de la última semana
     : false;
 
   return (
@@ -221,9 +223,9 @@ export default function HomeScreen({ navigation }: any) {
                   <Text style={styles.progressDays}>
                     {routine.days_remaining > 0
                       ? `${routine.days_remaining}d restantes`
-                      : routine.week_number >= routine.duration_weeks
-                        ? 'Rutina completada'
-                        : `${routine.days_remaining}d restantes`}
+                      : isRoutineCompleted
+                        ? 'Completada'
+                        : 'En progreso'}
                   </Text>
                 </View>
                 <View style={styles.progressBarBg}>
