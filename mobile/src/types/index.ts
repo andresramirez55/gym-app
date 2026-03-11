@@ -74,6 +74,7 @@ export interface LogWorkoutRequest {
   routine_day_id: number;
   duration: number;
   exercise_logs: ExerciseLog[];
+  notes?: string;
 }
 
 export interface ExerciseLogDetail {
@@ -87,6 +88,7 @@ export interface WorkoutLog {
   completed_at: string;
   duration: number;
   exercise_logs: ExerciseLogDetail[];
+  notes?: string;
 }
 
 export interface WeightProgressEntry {

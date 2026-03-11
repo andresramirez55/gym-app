@@ -44,6 +44,8 @@ export default function DayDetailScreen({ route, navigation }: Props) {
   const [exerciseInfoModal, setExerciseInfoModal] = useState<{ visible: boolean; exerciseName: string; info: ExerciseInfo | null; loading: boolean } | null>(null);
   const [restTimeModal, setRestTimeModal] = useState<{ visible: boolean; exerciseId: number; currentRestTime: number } | null>(null);
   const [newRestTime, setNewRestTime] = useState<string>('');
+  const [finishModal, setFinishModal] = useState(false);
+  const [workoutNotes, setWorkoutNotes] = useState('');
 
   const storageKey = `workout_progress_${day.id}`;
 
@@ -353,12 +355,34 @@ export default function DayDetailScreen({ route, navigation }: Props) {
     const updated = new Set(completedExercises);
     updated.add(exerciseId);
     setCompletedExercises(updated);
+
+    // Auto-iniciar descanso después de completar ejercicio
+    const exercise = day.exercises.find(ex => ex.id === exerciseId);
+    if (exercise && exercise.rest_seconds > 0) {
+      // Solo iniciar si no es el último ejercicio
+      const isLastExercise = updated.size === day.exercises.length;
+      if (!isLastExercise) {
+        startRest(exerciseId, exercise.rest_seconds);
+      }
+    }
   };
 
   const uncompleteExercise = (exerciseId: number) => {
     const updated = new Set(completedExercises);
     updated.delete(exerciseId);
     setCompletedExercises(updated);
+  };
+
+  const openFinishModal = () => {
+    const exerciseLogs = Object.entries(sets)
+      .filter(([_, exerciseSets]) => exerciseSets.length > 0);
+
+    if (exerciseLogs.length === 0) {
+      Alert.alert('Sin datos', 'Registrá al menos un ejercicio antes de finalizar.');
+      return;
+    }
+
+    setFinishModal(true);
   };
 
   const handleFinishWorkout = async () => {
@@ -385,9 +409,14 @@ export default function DayDetailScreen({ route, navigation }: Props) {
         routine_day_id: day.id,
         duration,
         exercise_logs: exerciseLogs,
+        notes: workoutNotes.trim() || undefined,
       });
 
       await AsyncStorage.removeItem(storageKey);
+
+      // Cerrar modal y resetear notas
+      setFinishModal(false);
+      setWorkoutNotes('');
 
       Alert.alert('¡Excelente! 💪', `Entrenamiento de ${duration || 1} min registrado`, [
         { text: 'OK', onPress: () => navigation.goBack() },
@@ -594,10 +623,54 @@ export default function DayDetailScreen({ route, navigation }: Props) {
           );
         })}
 
-        <TouchableOpacity style={styles.finishBtn} onPress={handleFinishWorkout} activeOpacity={0.85}>
+        <TouchableOpacity style={styles.finishBtn} onPress={openFinishModal} activeOpacity={0.85}>
           <Text style={styles.finishBtnText}>Finalizar entrenamiento</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Finish Workout Modal with Notes */}
+      <Modal
+        visible={finishModal}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setFinishModal(false)}
+      >
+        <View style={styles.restTimeModalOverlay}>
+          <View style={styles.finishModalContent}>
+            <Text style={styles.modalTitle}>Finalizar Entrenamiento</Text>
+            <Text style={styles.finishModalSubtitle}>
+              ¿Cómo te sentiste hoy? (opcional)
+            </Text>
+
+            <TextInput
+              style={styles.notesInput}
+              value={workoutNotes}
+              onChangeText={setWorkoutNotes}
+              placeholder="Ej: Me sentí con mucha energía, buena sesión!"
+              placeholderTextColor="#C0C0C8"
+              multiline
+              numberOfLines={3}
+              maxLength={200}
+              textAlignVertical="top"
+            />
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={() => setFinishModal(false)}
+              >
+                <Text style={styles.cancelButtonText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.confirmButton]}
+                onPress={handleFinishWorkout}
+              >
+                <Text style={styles.confirmButtonText}>Finalizar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Replacement Modal */}
       <Modal
@@ -1420,5 +1493,29 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: 'white',
+  },
+  finishModalContent: {
+    backgroundColor: 'white',
+    borderRadius: 24,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+  },
+  finishModalSubtitle: {
+    fontSize: 14,
+    color: '#8E8E93',
+    textAlign: 'center',
+    marginTop: 4,
+    marginBottom: 16,
+  },
+  notesInput: {
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+    borderRadius: 12,
+    padding: 12,
+    fontSize: 15,
+    minHeight: 80,
+    marginBottom: 20,
+    color: '#1C1C1E',
   },
 });
