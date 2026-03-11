@@ -322,12 +322,57 @@ export default function DayDetailScreen({ route, navigation }: Props) {
     }
 
     const exerciseSets = sets[exerciseId] || [];
+    const exercise = day.exercises.find(ex => ex.id === exerciseId);
+
+    // Auto-fill inteligente: intentar pre-llenar con datos de última sesión
+    let suggestedWeight = 0;
+    let suggestedReps = 0;
+
+    if (exercise) {
+      const lastSessionSets = lastSession[exercise.name];
+      if (lastSessionSets && lastSessionSets.length > 0) {
+        // Usar datos de la primera serie de última sesión como base
+        const baseSet = lastSessionSets[0];
+        suggestedWeight = baseSet.weight || 0;
+        suggestedReps = baseSet.reps || 0;
+
+        // Si está listo para progresar, sugerir incremento en peso
+        if (progressionReady[exercise.name]?.ready) {
+          suggestedWeight += progressionReady[exercise.name].suggestedIncrease;
+        }
+      }
+    }
+
     const newSet: SetLog = {
       set_number: exerciseSets.length + 1,
-      weight: 0,
-      reps: 0,
+      weight: suggestedWeight,
+      reps: suggestedReps,
     };
     setSets({ ...sets, [exerciseId]: [...exerciseSets, newSet] });
+  };
+
+  const copyPreviousSet = (exerciseId: number) => {
+    const exerciseSets = sets[exerciseId] || [];
+    if (exerciseSets.length === 0) {
+      Alert.alert('Sin series', 'No hay series anteriores para copiar.');
+      return;
+    }
+
+    // Copiar la última serie
+    const lastSet = exerciseSets[exerciseSets.length - 1];
+    const newSet: SetLog = {
+      set_number: exerciseSets.length + 1,
+      weight: lastSet.weight,
+      reps: lastSet.reps,
+    };
+    setSets({ ...sets, [exerciseId]: [...exerciseSets, newSet] });
+  };
+
+  const quickIncrementWeight = (exerciseId: number, setIndex: number, amount: number) => {
+    const exerciseSets = [...(sets[exerciseId] || [])];
+    const currentWeight = exerciseSets[setIndex].weight || 0;
+    exerciseSets[setIndex] = { ...exerciseSets[setIndex], weight: currentWeight + amount };
+    setSets({ ...sets, [exerciseId]: exerciseSets });
   };
 
   const updateSet = (exerciseId: number, setIndex: number, field: 'weight' | 'reps', value: string) => {
@@ -542,36 +587,62 @@ export default function DayDetailScreen({ route, navigation }: Props) {
                     {!isDone && <View style={{ width: 36 }} />}
                   </View>
                   {exerciseSets.map((set, index) => (
-                    <View key={index} style={styles.setRow}>
-                      <View style={styles.setNumberBadge}>
-                        <Text style={styles.setNumberText}>{set.set_number}</Text>
+                    <View key={index}>
+                      <View style={styles.setRow}>
+                        <View style={styles.setNumberBadge}>
+                          <Text style={styles.setNumberText}>{set.set_number}</Text>
+                        </View>
+                        <View style={styles.weightInputContainer}>
+                          <TextInput
+                            style={[styles.setInput, isDone && styles.setInputDone]}
+                            placeholder="0"
+                            placeholderTextColor="#C0C0C8"
+                            keyboardType="numeric"
+                            editable={!isDone}
+                            value={set.weight ? set.weight.toString() : ''}
+                            onChangeText={(v) => updateSet(exercise.id, index, 'weight', v)}
+                          />
+                          {!isDone && (
+                            <View style={styles.quickIncrementButtons}>
+                              <TouchableOpacity
+                                style={styles.quickIncrementBtn}
+                                onPress={() => quickIncrementWeight(exercise.id, index, 2.5)}
+                              >
+                                <Text style={styles.quickIncrementText}>+2.5</Text>
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                style={styles.quickIncrementBtn}
+                                onPress={() => quickIncrementWeight(exercise.id, index, 5)}
+                              >
+                                <Text style={styles.quickIncrementText}>+5</Text>
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                style={styles.quickIncrementBtn}
+                                onPress={() => quickIncrementWeight(exercise.id, index, 10)}
+                              >
+                                <Text style={styles.quickIncrementText}>+10</Text>
+                              </TouchableOpacity>
+                            </View>
+                          )}
+                        </View>
+                        <TextInput
+                          style={[styles.setInput, isDone && styles.setInputDone]}
+                          placeholder="0"
+                          placeholderTextColor="#C0C0C8"
+                          keyboardType="numeric"
+                          editable={!isDone}
+                          value={set.reps ? set.reps.toString() : ''}
+                          onChangeText={(v) => updateSet(exercise.id, index, 'reps', v)}
+                        />
+                        {!isDone && (
+                          <TouchableOpacity
+                            style={styles.removeBtn}
+                            onPress={() => removeSet(exercise.id, index)}
+                          >
+                            <Text style={styles.removeBtnText}>✕</Text>
+                          </TouchableOpacity>
+                        )}
                       </View>
-                      <TextInput
-                        style={[styles.setInput, isDone && styles.setInputDone]}
-                        placeholder="0"
-                        placeholderTextColor="#C0C0C8"
-                        keyboardType="numeric"
-                        editable={!isDone}
-                        value={set.weight ? set.weight.toString() : ''}
-                        onChangeText={(v) => updateSet(exercise.id, index, 'weight', v)}
-                      />
-                      <TextInput
-                        style={[styles.setInput, isDone && styles.setInputDone]}
-                        placeholder="0"
-                        placeholderTextColor="#C0C0C8"
-                        keyboardType="numeric"
-                        editable={!isDone}
-                        value={set.reps ? set.reps.toString() : ''}
-                        onChangeText={(v) => updateSet(exercise.id, index, 'reps', v)}
-                      />
-                      {!isDone && (
-                        <TouchableOpacity
-                          style={styles.removeBtn}
-                          onPress={() => removeSet(exercise.id, index)}
-                        >
-                          <Text style={styles.removeBtnText}>✕</Text>
-                        </TouchableOpacity>
-                      )}
                     </View>
                   ))}
                 </View>
@@ -579,9 +650,22 @@ export default function DayDetailScreen({ route, navigation }: Props) {
 
               {!isDone && (
                 <>
-                  <TouchableOpacity style={styles.addSetBtn} onPress={() => addSet(exercise.id)}>
-                    <Text style={styles.addSetBtnText}>+ Agregar serie</Text>
-                  </TouchableOpacity>
+                  <View style={styles.addSetButtonsRow}>
+                    <TouchableOpacity
+                      style={[styles.addSetBtn, { flex: 1 }]}
+                      onPress={() => addSet(exercise.id)}
+                    >
+                      <Text style={styles.addSetBtnText}>+ Agregar serie</Text>
+                    </TouchableOpacity>
+                    {exerciseSets.length > 0 && (
+                      <TouchableOpacity
+                        style={[styles.copySetBtn]}
+                        onPress={() => copyPreviousSet(exercise.id)}
+                      >
+                        <Text style={styles.copySetBtnText}>📋 Copiar</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
 
                   {exerciseSets.length > 0 && (
                     <TouchableOpacity
@@ -1517,5 +1601,47 @@ const styles = StyleSheet.create({
     minHeight: 80,
     marginBottom: 20,
     color: '#1C1C1E',
+  },
+  weightInputContainer: {
+    flex: 1,
+  },
+  quickIncrementButtons: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 4,
+    marginTop: 4,
+  },
+  quickIncrementBtn: {
+    backgroundColor: PRIMARY,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    minWidth: 38,
+    alignItems: 'center',
+  },
+  quickIncrementText: {
+    color: 'white',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  addSetButtonsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 10,
+  },
+  copySetBtn: {
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F0F0FF',
+    borderWidth: 1.5,
+    borderColor: PRIMARY,
+  },
+  copySetBtnText: {
+    color: PRIMARY,
+    fontSize: 14,
+    fontWeight: '600',
   },
 });
