@@ -115,6 +115,17 @@ export default function HomeScreen({ navigation }: any) {
     }
   };
 
+  const confirmGenerateRoutine = () => {
+    Alert.alert(
+      '¿Generar nueva rutina?',
+      'Esto va a reemplazar tu rutina actual. Tu historial de entrenamientos se mantendrá intacto.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Generar', style: 'default', onPress: handleGenerateRoutine },
+      ]
+    );
+  };
+
   const handleGenerateRoutine = async () => {
     setLoading(true);
     try {
@@ -326,8 +337,8 @@ export default function HomeScreen({ navigation }: any) {
               </TouchableOpacity>
             </View>
 
-            <TouchableOpacity style={styles.ghostButton} onPress={handleGenerateRoutine} activeOpacity={0.75}>
-              <Text style={styles.ghostButtonText}>Generar nueva rutina</Text>
+            <TouchableOpacity style={styles.generateButton} onPress={confirmGenerateRoutine} activeOpacity={0.75}>
+              <Text style={styles.generateButtonText}>✨ Generar nueva rutina</Text>
             </TouchableOpacity>
           </>
         )}
@@ -584,15 +595,26 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  ghostButton: {
+  generateButton: {
+    backgroundColor: 'white',
+    borderRadius: 14,
     padding: 16,
     alignItems: 'center',
     marginTop: 4,
     marginBottom: 12,
+    borderWidth: 2,
+    borderColor: PRIMARY,
+    borderStyle: 'dashed',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  ghostButtonText: {
-    color: '#8E8E93',
-    fontSize: 14,
+  generateButtonText: {
+    color: PRIMARY,
+    fontSize: 15,
+    fontWeight: '600',
   },
   weekCard: {
     backgroundColor: 'white',
