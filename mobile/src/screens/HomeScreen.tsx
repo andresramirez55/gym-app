@@ -8,13 +8,16 @@ import {
   ActivityIndicator,
   Alert,
   StatusBar,
+  Modal,
+  TextInput,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { AnimatedCircularProgress } from 'react-native-circular-progress';
 import { useAuth } from '../contexts/AuthContext';
 import { routineApi, workoutApi } from '../services/api';
-import type { Routine, WorkoutLog, Exercise, SetLog } from '../types';
+import type { Routine, WorkoutLog } from '../types';
+import { parseRoutineText, EXAMPLE_FORMAT, type ParsedRoutine } from '../utils/routineParser';
 
 const PRIMARY = '#5E5CE6';
 
@@ -58,53 +61,6 @@ function getWeekStart(): Date {
   return monday;
 }
 
-interface ExerciseCardProps {
-  exercise: Exercise;
-  lastSessionData?: SetLog[];
-  color: string;
-}
-
-function ExerciseCard({ exercise, lastSessionData, color }: ExerciseCardProps) {
-  const hasLastSession = lastSessionData && lastSessionData.length > 0;
-  const lastWeight = hasLastSession ? Math.max(...lastSessionData.map(s => s.weight || 0)) : null;
-  const lastReps = hasLastSession ? Math.max(...lastSessionData.map(s => s.reps || 0)) : null;
-
-  return (
-    <View style={styles.exerciseCard}>
-      <View style={styles.exerciseCardHeader}>
-        <View style={[styles.exerciseIconBadge, { backgroundColor: `${color}20` }]}>
-          <Text style={styles.exerciseIcon}>💪</Text>
-        </View>
-        <View style={styles.exerciseCardInfo}>
-          <Text style={styles.exerciseCardName} numberOfLines={1}>
-            {exercise.name}
-          </Text>
-          <Text style={styles.exerciseCardMeta}>
-            {exercise.sets} series × {exercise.reps} reps
-          </Text>
-        </View>
-      </View>
-
-      {hasLastSession && (
-        <View style={styles.lastSessionBadge}>
-          <Text style={styles.lastSessionLabel}>Última sesión:</Text>
-          <Text style={styles.lastSessionValue}>
-            {lastWeight}kg × {lastReps} reps
-          </Text>
-        </View>
-      )}
-
-      {exercise.rest_seconds > 0 && (
-        <View style={styles.restTimeBadge}>
-          <Text style={styles.restTimeText}>
-            ⏱️ {exercise.rest_seconds}s descanso
-          </Text>
-        </View>
-      )}
-    </View>
-  );
-}
-
 export default function HomeScreen({ navigation }: any) {
   const { user, signOut } = useAuth();
   const [routine, setRoutine] = useState<Routine | null>(null);
@@ -116,14 +72,17 @@ export default function HomeScreen({ navigation }: any) {
     days: number[]; // 0=Mon .. 6=Sun
   } | null>(null);
   const [weekCompletedDays, setWeekCompletedDays] = useState<Map<number, Date[]>>(new Map());
-  const [exerciseHistory, setExerciseHistory] = useState<Map<string, SetLog[]>>(new Map());
+  const [importModalVisible, setImportModalVisible] = useState(false);
+  const [importText, setImportText] = useState('');
+  const [showExample, setShowExample] = useState(false);
+  const [parsedRoutine, setParsedRoutine] = useState<ParsedRoutine | null>(null);
+  const [importLoading, setImportLoading] = useState(false);
 
   useEffect(() => {
     if (user) {
       loadRoutine();
       loadWeekStats();
       loadWeekCompletedDays();
-      loadExerciseHistory();
     }
   }, [user]);
 
@@ -133,7 +92,6 @@ export default function HomeScreen({ navigation }: any) {
       if (user) {
         loadWeekCompletedDays();
         loadWeekStats();
-        loadExerciseHistory();
       }
     }, [user])
   );
@@ -155,22 +113,6 @@ export default function HomeScreen({ navigation }: any) {
     } catch (_) {}
   };
 
-  const loadExerciseHistory = async () => {
-    try {
-      const history: WorkoutLog[] = await workoutApi.getHistory(user!.id, 10);
-      const map = new Map<string, SetLog[]>();
-
-      history.forEach(log => {
-        log.exercise_logs.forEach(exLog => {
-          if (!map.has(exLog.exercise_name) && exLog.sets.length > 0) {
-            map.set(exLog.exercise_name, exLog.sets);
-          }
-        });
-      });
-
-      setExerciseHistory(map);
-    } catch (_) {}
-  };
 
   const loadWeekStats = async () => {
     try {
@@ -240,6 +182,81 @@ export default function HomeScreen({ navigation }: any) {
     }
   };
 
+  const openImportModal = () => {
+    setImportText('');
+    setParsedRoutine(null);
+    setShowExample(false);
+    setImportModalVisible(true);
+  };
+
+  const closeImportModal = () => {
+    setImportModalVisible(false);
+    setImportText('');
+    setParsedRoutine(null);
+    setShowExample(false);
+  };
+
+  const handleParseRoutine = () => {
+    if (!importText.trim()) {
+      Alert.alert('Error', 'Por favor ingresá el texto de la rutina');
+      return;
+    }
+
+    const result = parseRoutineText(importText);
+
+    if (!result.success) {
+      const errorMessages = result.errors!.map(err =>
+        `Línea ${err.line}: ${err.message}`
+      ).join('\n');
+      Alert.alert('Error al parsear', errorMessages);
+      return;
+    }
+
+    setParsedRoutine(result.routine!);
+    Alert.alert(
+      'Rutina detectada',
+      `${result.routine!.name}\n${result.routine!.days.length} días, ${result.routine!.duration_weeks} semanas\n\n¿Deseas crear esta rutina?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Crear', style: 'default', onPress: handleCreateImportedRoutine },
+      ]
+    );
+  };
+
+  const handleCreateImportedRoutine = async () => {
+    if (!parsedRoutine) return;
+
+    setImportLoading(true);
+    try {
+      // Crear la rutina usando la API existente
+      const newRoutine = await routineApi.create({
+        user_id: user!.id,
+        name: parsedRoutine.name,
+        goal: parsedRoutine.goal,
+        duration_weeks: parsedRoutine.duration_weeks,
+        frequency: parsedRoutine.frequency,
+        days: parsedRoutine.days.map(day => ({
+          day_name: day.day_name,
+          exercises: day.exercises.map(ex => ({
+            name: ex.name,
+            sets: ex.sets,
+            reps: ex.reps,
+            rest_seconds: ex.rest_seconds,
+            notes: ex.notes || '',
+          })),
+        })),
+      });
+
+      setRoutine(newRoutine);
+      closeImportModal();
+      Alert.alert('¡Éxito!', 'Rutina importada correctamente');
+    } catch (error) {
+      Alert.alert('Error', 'No se pudo crear la rutina');
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
   const handleLogout = async () => {
     Alert.alert('Cerrar Sesión', '¿Estás seguro?', [
       { text: 'Cancelar', style: 'cancel' },
@@ -268,8 +285,9 @@ export default function HomeScreen({ navigation }: any) {
     : false;
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      <StatusBar barStyle="light-content" />
+    <>
+      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+        <StatusBar barStyle="light-content" />
 
       {/* Header */}
       <View style={styles.header}>
@@ -463,38 +481,6 @@ export default function HomeScreen({ navigation }: any) {
               );
             })}
 
-            {/* Exercise Preview */}
-            {routine.days.length > 0 && routine.days[0].exercises.length > 0 && (
-              <>
-                <Text style={styles.sectionTitle}>Vista previa de ejercicios</Text>
-                <View style={styles.exerciseCardsContainer}>
-                  {routine.days[0].exercises.slice(0, 4).map((ex, i) => (
-                    <ExerciseCard
-                      key={ex.id}
-                      exercise={ex}
-                      lastSessionData={exerciseHistory.get(ex.name)}
-                      color={DAY_COLORS[i % DAY_COLORS.length]}
-                    />
-                  ))}
-                  {routine.days[0].exercises.length > 4 && (
-                    <TouchableOpacity
-                      style={styles.seeMoreCard}
-                      onPress={() => navigation.navigate('DayDetail', {
-                        day: routine.days[0],
-                        routineId: routine.id
-                      })}
-                      activeOpacity={0.75}
-                    >
-                      <Text style={styles.seeMoreText}>
-                        +{routine.days[0].exercises.length - 4} ejercicios más
-                      </Text>
-                      <Text style={styles.seeMoreArrow}>›</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              </>
-            )}
-
             {/* Actions */}
             <View style={styles.actionsRow}>
               <TouchableOpacity
@@ -502,21 +488,24 @@ export default function HomeScreen({ navigation }: any) {
                 onPress={() => navigation.navigate('History')}
                 activeOpacity={0.75}
               >
-                <Text style={styles.secondaryButtonText}>📊 Historial</Text>
+                <Text style={styles.secondaryButtonIcon}>📊</Text>
+                <Text style={styles.secondaryButtonText}>Historial</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.secondaryButton, { flex: 1 }]}
                 onPress={() => navigation.navigate('Calendar')}
                 activeOpacity={0.75}
               >
-                <Text style={styles.secondaryButtonText}>📅 Calendario</Text>
+                <Text style={styles.secondaryButtonIcon}>📅</Text>
+                <Text style={styles.secondaryButtonText}>Calendario</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.secondaryButton, { flex: 1 }]}
                 onPress={() => navigation.navigate('Progress')}
                 activeOpacity={0.75}
               >
-                <Text style={styles.secondaryButtonText}>📈 Progresión</Text>
+                <Text style={styles.secondaryButtonIcon}>📈</Text>
+                <Text style={styles.secondaryButtonText}>Progreso</Text>
               </TouchableOpacity>
             </View>
 
@@ -524,6 +513,13 @@ export default function HomeScreen({ navigation }: any) {
               <View style={styles.generateButtonContent}>
                 <Text style={styles.generateButtonIcon}>✨</Text>
                 <Text style={styles.generateButtonText}>Generar nueva rutina</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.importButton} onPress={openImportModal} activeOpacity={0.75}>
+              <View style={styles.generateButtonContent}>
+                <Text style={styles.importButtonIcon}>📄</Text>
+                <Text style={styles.importButtonText}>Importar desde texto</Text>
               </View>
             </TouchableOpacity>
           </>
@@ -537,6 +533,68 @@ export default function HomeScreen({ navigation }: any) {
         </View>
       </View>
     </ScrollView>
+
+      {/* Modal de Importar Rutina */}
+      <Modal
+      visible={importModalVisible}
+      animationType="slide"
+      transparent={false}
+      onRequestClose={closeImportModal}
+    >
+      <View style={styles.modalContainer}>
+        <View style={styles.modalHeader}>
+          <TouchableOpacity onPress={closeImportModal}>
+            <Text style={styles.modalCloseButton}>✕</Text>
+          </TouchableOpacity>
+          <Text style={styles.modalTitle}>Importar Rutina</Text>
+          <TouchableOpacity onPress={() => setShowExample(!showExample)}>
+            <Text style={styles.modalExampleButton}>
+              {showExample ? 'Ocultar' : 'Ver ejemplo'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        <ScrollView style={styles.modalContent}>
+          {showExample && (
+            <View style={styles.exampleContainer}>
+              <Text style={styles.exampleTitle}>Formato de ejemplo:</Text>
+              <View style={styles.exampleBox}>
+                <Text style={styles.exampleText}>{EXAMPLE_FORMAT}</Text>
+              </View>
+            </View>
+          )}
+
+          <Text style={styles.modalInstructions}>
+            Pegá tu rutina en el formato indicado:
+          </Text>
+
+          <TextInput
+            style={styles.importTextInput}
+            value={importText}
+            onChangeText={setImportText}
+            placeholder="NOMBRE: Mi Rutina&#10;DURACION: 8&#10;OBJETIVO: gain_muscle&#10;FRECUENCIA: 6&#10;&#10;DIA 1: Push&#10;Press banca | 4 | 8-10 | 90&#10;..."
+            placeholderTextColor="#999"
+            multiline
+            numberOfLines={15}
+            textAlignVertical="top"
+          />
+
+          <TouchableOpacity
+            style={[styles.parseButton, importLoading && styles.parseButtonDisabled]}
+            onPress={handleParseRoutine}
+            disabled={importLoading}
+            activeOpacity={0.8}
+          >
+            {importLoading ? (
+              <ActivityIndicator color="white" />
+            ) : (
+              <Text style={styles.parseButtonText}>Importar Rutina</Text>
+            )}
+          </TouchableOpacity>
+        </ScrollView>
+      </View>
+    </Modal>
+    </>
   );
 }
 
@@ -794,97 +852,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#059669',
   },
-  exerciseCardsContainer: {
-    gap: 10,
-    marginBottom: 24,
-  },
-  exerciseCard: {
-    backgroundColor: 'white',
-    borderRadius: 16,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  exerciseCardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 10,
-  },
-  exerciseIconBadge: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  exerciseIcon: {
-    fontSize: 20,
-  },
-  exerciseCardInfo: {
-    flex: 1,
-  },
-  exerciseCardName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1C1C1E',
-    marginBottom: 2,
-  },
-  exerciseCardMeta: {
-    fontSize: 13,
-    color: '#8E8E93',
-  },
-  lastSessionBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#F2F2F7',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    marginBottom: 8,
-  },
-  lastSessionLabel: {
-    fontSize: 11,
-    color: '#8E8E93',
-    fontWeight: '600',
-  },
-  lastSessionValue: {
-    fontSize: 13,
-    color: '#1C1C1E',
-    fontWeight: '700',
-  },
-  restTimeBadge: {
-    alignSelf: 'flex-start',
-  },
-  restTimeText: {
-    fontSize: 12,
-    color: '#6E6E73',
-  },
-  seeMoreCard: {
-    backgroundColor: '#F8F8F9',
-    borderRadius: 16,
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderWidth: 1.5,
-    borderColor: '#E5E5EA',
-    borderStyle: 'dashed',
-  },
-  seeMoreText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#6E6E73',
-  },
-  seeMoreArrow: {
-    fontSize: 22,
-    color: '#C7C7CC',
-    fontWeight: '300',
-  },
   primaryButton: {
     backgroundColor: PRIMARY,
     borderRadius: 16,
@@ -918,9 +885,13 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 2,
   },
+  secondaryButtonIcon: {
+    fontSize: 22,
+    marginBottom: 6,
+  },
   secondaryButtonText: {
     color: PRIMARY,
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: '600',
   },
   generateButton: {
@@ -946,6 +917,30 @@ const styles = StyleSheet.create({
   },
   generateButtonText: {
     color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+    letterSpacing: 0.3,
+  },
+  importButton: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 18,
+    alignItems: 'center',
+    marginTop: 8,
+    marginBottom: 16,
+    borderWidth: 2,
+    borderColor: PRIMARY,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  importButtonIcon: {
+    fontSize: 18,
+  },
+  importButtonText: {
+    color: PRIMARY,
     fontSize: 16,
     fontWeight: 'bold',
     letterSpacing: 0.3,
@@ -1086,6 +1081,92 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   completionButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  // Modal de importación
+  modalContainer: {
+    flex: 1,
+    backgroundColor: '#F2F2F7',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    paddingTop: 60,
+    backgroundColor: PRIMARY,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: 'white',
+  },
+  modalCloseButton: {
+    fontSize: 28,
+    color: 'white',
+    fontWeight: '300',
+  },
+  modalExampleButton: {
+    fontSize: 14,
+    color: 'white',
+    fontWeight: '600',
+  },
+  modalContent: {
+    flex: 1,
+    padding: 20,
+  },
+  modalInstructions: {
+    fontSize: 15,
+    color: '#6E6E73',
+    marginBottom: 12,
+    fontWeight: '500',
+  },
+  exampleContainer: {
+    marginBottom: 20,
+  },
+  exampleTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1C1C1E',
+    marginBottom: 8,
+  },
+  exampleBox: {
+    backgroundColor: '#F8F8FC',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+  },
+  exampleText: {
+    fontSize: 12,
+    color: '#3C3C43',
+    fontFamily: 'monospace',
+    lineHeight: 18,
+  },
+  importTextInput: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 14,
+    minHeight: 300,
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+    fontFamily: 'monospace',
+    marginBottom: 20,
+  },
+  parseButton: {
+    backgroundColor: PRIMARY,
+    borderRadius: 14,
+    padding: 16,
+    alignItems: 'center',
+    marginBottom: 30,
+  },
+  parseButtonDisabled: {
+    opacity: 0.5,
+  },
+  parseButtonText: {
     color: 'white',
     fontSize: 16,
     fontWeight: 'bold',

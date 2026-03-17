@@ -63,14 +63,12 @@ export default function App() {
   useEffect(() => {
     async function checkForUpdates() {
       try {
-        // Solo verificar updates en producción (no en desarrollo)
-        if (!__DEV__) {
-          const update = await Updates.checkForUpdateAsync();
-          if (update.isAvailable) {
-            await Updates.fetchUpdateAsync();
-            // Reiniciar la app para aplicar el update
-            await Updates.reloadAsync();
-          }
+        // Verificar updates (temporalmente habilitado en desarrollo también)
+        const update = await Updates.checkForUpdateAsync();
+        if (update.isAvailable) {
+          await Updates.fetchUpdateAsync();
+          // Reiniciar la app para aplicar el update
+          await Updates.reloadAsync();
         }
       } catch (error) {
         // Silenciar errores de updates para no afectar la experiencia del usuario

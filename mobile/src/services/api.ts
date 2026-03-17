@@ -120,6 +120,27 @@ export const routineApi = {
     return response.data;
   },
 
+  create: async (data: {
+    user_id: number;
+    name: string;
+    goal: string;
+    duration_weeks: number;
+    frequency: number;
+    days: Array<{
+      day_name: string;
+      exercises: Array<{
+        name: string;
+        sets: number;
+        reps: string;
+        rest_seconds: number;
+        notes: string;
+      }>;
+    }>;
+  }): Promise<Routine> => {
+    const response = await api.post<Routine>('/api/routines', data);
+    return response.data;
+  },
+
   updateExercise: async (
     exerciseId: number,
     data: { name: string; sets: number; reps: string; rest_seconds: number; notes: string }

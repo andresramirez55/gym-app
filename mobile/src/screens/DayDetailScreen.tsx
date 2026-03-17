@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -46,6 +46,8 @@ export default function DayDetailScreen({ route, navigation }: Props) {
   const [newRestTime, setNewRestTime] = useState<string>('');
   const [finishModal, setFinishModal] = useState(false);
   const [workoutNotes, setWorkoutNotes] = useState('');
+
+  const restAlertShownRef = useRef<number | null>(null);
 
   const storageKey = `workout_progress_${day.id}`;
 
@@ -179,16 +181,23 @@ export default function DayDetailScreen({ route, navigation }: Props) {
 
   // Rest timer countdown - update every second
   useEffect(() => {
-    if (!restTimer) return;
+    if (!restTimer) {
+      restAlertShownRef.current = null;
+      return;
+    }
 
     const checkTimer = () => {
       const now = new Date().getTime();
       const timeLeft = Math.max(0, Math.floor((restTimer.endTime - now) / 1000));
 
       if (timeLeft <= 0) {
-        Vibration.vibrate([0, 400, 200, 400]);
-        Alert.alert('¡Listo!', '¡Tiempo de descanso terminado!');
-        setRestTimer(null);
+        // Solo mostrar el alert UNA VEZ para este timer
+        if (restAlertShownRef.current !== restTimer.endTime) {
+          restAlertShownRef.current = restTimer.endTime;
+          Vibration.vibrate([0, 400, 200, 400]);
+          Alert.alert('¡Listo!', '¡Tiempo de descanso terminado!');
+          setRestTimer(null);
+        }
       } else {
         setRestTimerTick(prev => prev + 1); // Force re-render
       }
@@ -292,12 +301,11 @@ export default function DayDetailScreen({ route, navigation }: Props) {
         notes: exerciseToUpdate.notes || '',
       });
 
-      Alert.alert('¡Listo!', `Tiempo de descanso actualizado a ${restSeconds}s`, [
-        { text: 'OK', onPress: () => {
-          closeRestTimeModal();
-          navigation.goBack();
-        }},
-      ]);
+      // Actualizar el ejercicio localmente para que se vea el cambio inmediatamente
+      exerciseToUpdate.rest_seconds = restSeconds;
+
+      closeRestTimeModal();
+      Alert.alert('✅ Guardado', `Tiempo de descanso actualizado a ${restSeconds}s`);
     } catch (error) {
       Alert.alert('Error', 'No se pudo actualizar el tiempo de descanso');
     }
@@ -675,26 +683,6 @@ export default function DayDetailScreen({ route, navigation }: Props) {
                       <Text style={styles.completeBtnText}>✓  Ejercicio terminado</Text>
                     </TouchableOpacity>
                   )}
-
-                  {/* Rest Timer */}
-                  {isResting ? (
-                    <View style={styles.timerBox}>
-                      <Text style={styles.timerTime}>{formatTime(restTimeLeft)}</Text>
-                      <Text style={styles.timerLabel}>DESCANSANDO</Text>
-                      <TouchableOpacity style={styles.cancelTimerBtn} onPress={cancelRest}>
-                        <Text style={styles.cancelTimerText}>Cancelar</Text>
-                      </TouchableOpacity>
-                    </View>
-                  ) : (
-                    <TouchableOpacity
-                      style={styles.restBtn}
-                      onPress={() => startRest(exercise.id, exercise.rest_seconds)}
-                    >
-                      <Text style={styles.restBtnText}>
-                        ⏱  Descanso ({exercise.rest_seconds}s)
-                      </Text>
-                    </TouchableOpacity>
-                  )}
                 </>
               )}
 
@@ -702,6 +690,26 @@ export default function DayDetailScreen({ route, navigation }: Props) {
                 <View style={styles.doneBadge}>
                   <Text style={styles.doneBadgeText}>✓  {exerciseSets.length} series completadas</Text>
                 </View>
+              )}
+
+              {/* Rest Timer - fuera del bloque !isDone para que sea visible siempre */}
+              {isResting ? (
+                <View style={styles.timerBox}>
+                  <Text style={styles.timerTime}>{formatTime(restTimeLeft)}</Text>
+                  <Text style={styles.timerLabel}>PRÓXIMO EJERCICIO EN</Text>
+                  <TouchableOpacity style={styles.cancelTimerBtn} onPress={cancelRest}>
+                    <Text style={styles.cancelTimerText}>Cancelar</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : !isDone && (
+                <TouchableOpacity
+                  style={styles.restBtn}
+                  onPress={() => startRest(exercise.id, exercise.rest_seconds)}
+                >
+                  <Text style={styles.restBtnText}>
+                    ⏱  Descanso ({exercise.rest_seconds}s)
+                  </Text>
+                </TouchableOpacity>
               )}
             </View>
           );
@@ -1185,7 +1193,7 @@ const styles = StyleSheet.create({
   },
   setRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     paddingHorizontal: 12,
     paddingVertical: 8,
     gap: 8,
@@ -1193,13 +1201,13 @@ const styles = StyleSheet.create({
     borderTopColor: '#F0F0F5',
   },
   setNumberBadge: {
-    width: 28,
+    width: 52,
     height: 28,
     borderRadius: 8,
     backgroundColor: '#F2F2F7',
     alignItems: 'center',
     justifyContent: 'center',
-    width: 52,
+    marginTop: 6,
   },
   setNumberText: {
     fontSize: 13,
@@ -1222,13 +1230,13 @@ const styles = StyleSheet.create({
     color: '#1C7A38',
   },
   removeBtn: {
-    width: 28,
+    width: 36,
     height: 28,
     borderRadius: 8,
     backgroundColor: '#FFF0F0',
     alignItems: 'center',
     justifyContent: 'center',
-    width: 36,
+    marginTop: 6,
   },
   removeBtnText: {
     fontSize: 13,
