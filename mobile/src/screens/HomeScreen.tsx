@@ -17,7 +17,6 @@ import { AnimatedCircularProgress } from 'react-native-circular-progress';
 import { useAuth } from '../contexts/AuthContext';
 import { routineApi, workoutApi } from '../services/api';
 import type { Routine, WorkoutLog } from '../types';
-import { parseRoutineText, EXAMPLE_FORMAT, type ParsedRoutine } from '../utils/routineParser';
 
 const PRIMARY = '#5E5CE6';
 
@@ -74,8 +73,9 @@ export default function HomeScreen({ navigation }: any) {
   const [weekCompletedDays, setWeekCompletedDays] = useState<Map<number, Date[]>>(new Map());
   const [importModalVisible, setImportModalVisible] = useState(false);
   const [importText, setImportText] = useState('');
-  const [showExample, setShowExample] = useState(false);
-  const [parsedRoutine, setParsedRoutine] = useState<ParsedRoutine | null>(null);
+  const [importGoal, setImportGoal] = useState('gain_muscle');
+  const [importDuration, setImportDuration] = useState('8');
+  const [importFrequency, setImportFrequency] = useState('6');
   const [importLoading, setImportLoading] = useState(false);
 
   useEffect(() => {
@@ -184,74 +184,52 @@ export default function HomeScreen({ navigation }: any) {
 
   const openImportModal = () => {
     setImportText('');
-    setParsedRoutine(null);
-    setShowExample(false);
+    setImportGoal('gain_muscle');
+    setImportDuration('8');
+    setImportFrequency('6');
     setImportModalVisible(true);
   };
 
   const closeImportModal = () => {
     setImportModalVisible(false);
     setImportText('');
-    setParsedRoutine(null);
-    setShowExample(false);
   };
 
-  const handleParseRoutine = () => {
+  const handleImportRoutine = async () => {
     if (!importText.trim()) {
       Alert.alert('Error', 'Por favor ingresá el texto de la rutina');
       return;
     }
 
-    const result = parseRoutineText(importText);
+    const duration = parseInt(importDuration);
+    const frequency = parseInt(importFrequency);
 
-    if (!result.success) {
-      const errorMessages = result.errors!.map(err =>
-        `Línea ${err.line}: ${err.message}`
-      ).join('\n');
-      Alert.alert('Error al parsear', errorMessages);
+    if (isNaN(duration) || duration < 1 || duration > 52) {
+      Alert.alert('Error', 'Duración debe ser entre 1 y 52 semanas');
       return;
     }
 
-    setParsedRoutine(result.routine!);
-    Alert.alert(
-      'Rutina detectada',
-      `${result.routine!.name}\n${result.routine!.days.length} días, ${result.routine!.duration_weeks} semanas\n\n¿Deseas crear esta rutina?`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Crear', style: 'default', onPress: handleCreateImportedRoutine },
-      ]
-    );
-  };
-
-  const handleCreateImportedRoutine = async () => {
-    if (!parsedRoutine) return;
+    if (isNaN(frequency) || frequency < 1 || frequency > 7) {
+      Alert.alert('Error', 'Frecuencia debe ser entre 1 y 7 días');
+      return;
+    }
 
     setImportLoading(true);
     try {
-      // Crear la rutina usando la API existente
-      const newRoutine = await routineApi.create({
+      const newRoutine = await routineApi.import({
         user_id: user!.id,
-        name: parsedRoutine.name,
-        goal: parsedRoutine.goal,
-        duration_weeks: parsedRoutine.duration_weeks,
-        frequency: parsedRoutine.frequency,
-        days: parsedRoutine.days.map(day => ({
-          day_name: day.day_name,
-          exercises: day.exercises.map(ex => ({
-            name: ex.name,
-            sets: ex.sets,
-            reps: ex.reps,
-            rest_seconds: ex.rest_seconds,
-            notes: ex.notes || '',
-          })),
-        })),
+        text: importText,
+        goal: importGoal,
+        duration_weeks: duration,
+        frequency: frequency,
       });
 
       setRoutine(newRoutine);
       closeImportModal();
       Alert.alert('¡Éxito!', 'Rutina importada correctamente');
-    } catch (error) {
-      Alert.alert('Error', 'No se pudo crear la rutina');
+    } catch (error: any) {
+      const errorMsg = error.response?.data || error.message || 'Error desconocido';
+      Alert.alert('Error', `No se pudo importar la rutina:\n${errorMsg}`);
     } finally {
       setImportLoading(false);
     }
@@ -547,48 +525,76 @@ export default function HomeScreen({ navigation }: any) {
             <Text style={styles.modalCloseButton}>✕</Text>
           </TouchableOpacity>
           <Text style={styles.modalTitle}>Importar Rutina</Text>
-          <TouchableOpacity onPress={() => setShowExample(!showExample)}>
-            <Text style={styles.modalExampleButton}>
-              {showExample ? 'Ocultar' : 'Ver ejemplo'}
-            </Text>
-          </TouchableOpacity>
+          <View style={{ width: 40 }} />
         </View>
 
         <ScrollView style={styles.modalContent}>
-          {showExample && (
-            <View style={styles.exampleContainer}>
-              <Text style={styles.exampleTitle}>Formato de ejemplo:</Text>
-              <View style={styles.exampleBox}>
-                <Text style={styles.exampleText}>{EXAMPLE_FORMAT}</Text>
-              </View>
-            </View>
-          )}
-
           <Text style={styles.modalInstructions}>
-            Pegá tu rutina en el formato indicado:
+            Pegá tu rutina en cualquier formato. La IA la interpretará automáticamente.
           </Text>
 
           <TextInput
             style={styles.importTextInput}
             value={importText}
             onChangeText={setImportText}
-            placeholder="NOMBRE: Mi Rutina&#10;DURACION: 8&#10;OBJETIVO: gain_muscle&#10;FRECUENCIA: 6&#10;&#10;DIA 1: Push&#10;Press banca | 4 | 8-10 | 90&#10;..."
+            placeholder="Ejemplo:&#10;&#10;Día 1: Pecho&#10;Press banca 4x8-10&#10;Press inclinado 3x10-12&#10;&#10;Día 2: Espalda&#10;Dominadas 4x8&#10;Remo 3x10&#10;..."
             placeholderTextColor="#999"
             multiline
-            numberOfLines={15}
+            numberOfLines={10}
             textAlignVertical="top"
+          />
+
+          <Text style={styles.formLabel}>Objetivo:</Text>
+          <View style={styles.goalButtonsRow}>
+            {Object.entries(GOAL_LABELS).map(([key, label]) => (
+              <TouchableOpacity
+                key={key}
+                style={[
+                  styles.goalButton,
+                  importGoal === key && styles.goalButtonActive
+                ]}
+                onPress={() => setImportGoal(key)}
+              >
+                <Text style={[
+                  styles.goalButtonText,
+                  importGoal === key && styles.goalButtonTextActive
+                ]}>
+                  {label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <Text style={styles.formLabel}>Duración (semanas):</Text>
+          <TextInput
+            style={styles.formInput}
+            value={importDuration}
+            onChangeText={setImportDuration}
+            placeholder="8"
+            keyboardType="numeric"
+            maxLength={2}
+          />
+
+          <Text style={styles.formLabel}>Frecuencia (días por semana):</Text>
+          <TextInput
+            style={styles.formInput}
+            value={importFrequency}
+            onChangeText={setImportFrequency}
+            placeholder="6"
+            keyboardType="numeric"
+            maxLength={1}
           />
 
           <TouchableOpacity
             style={[styles.parseButton, importLoading && styles.parseButtonDisabled]}
-            onPress={handleParseRoutine}
+            onPress={handleImportRoutine}
             disabled={importLoading}
             activeOpacity={0.8}
           >
             {importLoading ? (
               <ActivityIndicator color="white" />
             ) : (
-              <Text style={styles.parseButtonText}>Importar Rutina</Text>
+              <Text style={styles.parseButtonText}>Importar con IA</Text>
             )}
           </TouchableOpacity>
         </ScrollView>
@@ -1170,5 +1176,49 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  formLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  formInput: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: '#000',
+  },
+  goalButtonsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 8,
+  },
+  goalButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: '#E5E5EA',
+    backgroundColor: 'white',
+  },
+  goalButtonActive: {
+    borderColor: PRIMARY,
+    backgroundColor: `${PRIMARY}15`,
+  },
+  goalButtonText: {
+    fontSize: 13,
+    color: '#666',
+    fontWeight: '500',
+  },
+  goalButtonTextActive: {
+    color: PRIMARY,
+    fontWeight: '600',
   },
 });

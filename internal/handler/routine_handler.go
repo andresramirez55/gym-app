@@ -34,6 +34,38 @@ func (h *RoutineHandler) GenerateRoutine(w http.ResponseWriter, r *http.Request)
 	respondJSON(w, http.StatusCreated, h.toRoutineResponse(routine))
 }
 
+func (h *RoutineHandler) CreateRoutine(w http.ResponseWriter, r *http.Request) {
+	var req dto.CreateRoutineRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	routine, err := h.routineService.CreateRoutine(r.Context(), &req)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	respondJSON(w, http.StatusCreated, h.toRoutineResponse(routine))
+}
+
+func (h *RoutineHandler) ImportRoutine(w http.ResponseWriter, r *http.Request) {
+	var req dto.ImportRoutineRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	routine, err := h.routineService.ImportRoutine(r.Context(), &req)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	respondJSON(w, http.StatusCreated, h.toRoutineResponse(routine))
+}
+
 func (h *RoutineHandler) GetRoutine(w http.ResponseWriter, r *http.Request) {
 	idStr := r.URL.Query().Get("id")
 	id, err := strconv.ParseInt(idStr, 10, 64)

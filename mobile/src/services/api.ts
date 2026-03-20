@@ -141,6 +141,17 @@ export const routineApi = {
     return response.data;
   },
 
+  import: async (data: {
+    user_id: number;
+    text: string;
+    goal: string;
+    duration_weeks: number;
+    frequency: number;
+  }): Promise<Routine> => {
+    const response = await api.post<Routine>('/api/routines/import', data);
+    return response.data;
+  },
+
   updateExercise: async (
     exerciseId: number,
     data: { name: string; sets: number; reps: string; rest_seconds: number; notes: string }

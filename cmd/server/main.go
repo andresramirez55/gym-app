@@ -37,7 +37,17 @@ func main() {
 
 	// Initialize services
 	userService := service.NewUserService(userRepo)
-	routineService := service.NewRoutineServiceWithTemplates(routineRepo, routineTemplateRepo, workoutRepo)
+
+	// Initialize AI service (optional - only if CLAUDE_API_KEY is set)
+	var aiService service.AIService
+	if cfg.ClaudeAPI.APIKey != "" {
+		aiService = service.NewAIService(cfg.ClaudeAPI.APIKey)
+		log.Println("AI service initialized - routine import feature available")
+	} else {
+		log.Println("CLAUDE_API_KEY not set - routine import feature will not be available")
+	}
+
+	routineService := service.NewRoutineServiceWithTemplates(routineRepo, routineTemplateRepo, workoutRepo, aiService)
 	workoutService := service.NewWorkoutService(workoutRepo, routineRepo)
 
 	// Initialize handlers
@@ -79,10 +89,21 @@ func main() {
 		}
 	})
 
-	mux.HandleFunc("/api/routines", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodGet {
-			routineHandler.GetRoutine(w, r)
+	mux.HandleFunc("/api/routines/import", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			routineHandler.ImportRoutine(w, r)
 		} else {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
+	mux.HandleFunc("/api/routines", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			routineHandler.GetRoutine(w, r)
+		case http.MethodPost:
+			routineHandler.CreateRoutine(w, r)
+		default:
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}
 	})

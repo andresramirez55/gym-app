@@ -13,13 +13,15 @@ type routineServiceWithTemplates struct {
 	routineRepo  repository.RoutineRepository
 	templateRepo repository.RoutineTemplateRepository
 	workoutRepo  repository.WorkoutRepository
+	aiService    AIService
 }
 
-func NewRoutineServiceWithTemplates(routineRepo repository.RoutineRepository, templateRepo repository.RoutineTemplateRepository, workoutRepo repository.WorkoutRepository) RoutineService {
+func NewRoutineServiceWithTemplates(routineRepo repository.RoutineRepository, templateRepo repository.RoutineTemplateRepository, workoutRepo repository.WorkoutRepository, aiService AIService) RoutineService {
 	return &routineServiceWithTemplates{
 		routineRepo:  routineRepo,
 		templateRepo: templateRepo,
 		workoutRepo:  workoutRepo,
+		aiService:    aiService,
 	}
 }
 
@@ -83,6 +85,125 @@ func (s *routineServiceWithTemplates) GenerateRoutineForUser(ctx context.Context
 				RestSeconds:  templateEx.RestSeconds,
 				Order:        templateEx.Order,
 				Notes:        templateEx.Notes,
+			}
+
+			if err := s.routineRepo.CreateExercise(ctx, exercise); err != nil {
+				return nil, fmt.Errorf("error creating exercise: %w", err)
+			}
+		}
+	}
+
+	// Cargar rutina completa con días y ejercicios
+	return s.GetRoutineByID(ctx, routine.ID)
+}
+
+func (s *routineServiceWithTemplates) CreateRoutine(ctx context.Context, req *dto.CreateRoutineRequest) (*domain.Routine, error) {
+	// Desactivar rutinas existentes del usuario
+	if err := s.routineRepo.DeactivateUserRoutines(ctx, req.UserID); err != nil {
+		return nil, fmt.Errorf("error deactivating old routines: %w", err)
+	}
+
+	// Crear rutina
+	routine := &domain.Routine{
+		UserID:        req.UserID,
+		Name:          req.Name,
+		Description:   fmt.Sprintf("Rutina personalizada de %d días", req.Frequency),
+		Goal:          req.Goal,
+		Frequency:     req.Frequency,
+		DurationWeeks: req.DurationWeeks,
+		IsActive:      true,
+	}
+
+	if err := s.routineRepo.Create(ctx, routine); err != nil {
+		return nil, fmt.Errorf("error creating routine: %w", err)
+	}
+
+	// Crear días y ejercicios
+	for dayIdx, reqDay := range req.Days {
+		day := &domain.RoutineDay{
+			RoutineID: routine.ID,
+			DayNumber: dayIdx + 1,
+			DayName:   reqDay.DayName,
+		}
+
+		if err := s.routineRepo.CreateDay(ctx, day); err != nil {
+			return nil, fmt.Errorf("error creating routine day: %w", err)
+		}
+
+		for exIdx, reqEx := range reqDay.Exercises {
+			exercise := &domain.Exercise{
+				RoutineDayID: day.ID,
+				Name:         reqEx.Name,
+				Sets:         reqEx.Sets,
+				Reps:         reqEx.Reps,
+				RestSeconds:  reqEx.RestSeconds,
+				Order:        exIdx + 1,
+				Notes:        reqEx.Notes,
+			}
+
+			if err := s.routineRepo.CreateExercise(ctx, exercise); err != nil {
+				return nil, fmt.Errorf("error creating exercise: %w", err)
+			}
+		}
+	}
+
+	// Cargar rutina completa con días y ejercicios
+	return s.GetRoutineByID(ctx, routine.ID)
+}
+
+func (s *routineServiceWithTemplates) ImportRoutine(ctx context.Context, req *dto.ImportRoutineRequest) (*domain.Routine, error) {
+	// Check if AI service is available
+	if s.aiService == nil {
+		return nil, fmt.Errorf("AI service not configured. Set CLAUDE_API_KEY environment variable to use this feature.")
+	}
+
+	// Parse routine text using AI
+	aiRoutine, err := s.aiService.ParseRoutineText(ctx, req.Text)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing routine text: %w", err)
+	}
+
+	// Desactivar rutinas existentes del usuario
+	if err := s.routineRepo.DeactivateUserRoutines(ctx, req.UserID); err != nil {
+		return nil, fmt.Errorf("error deactivating old routines: %w", err)
+	}
+
+	// Crear rutina
+	routine := &domain.Routine{
+		UserID:        req.UserID,
+		Name:          aiRoutine.Name,
+		Description:   aiRoutine.Description,
+		Goal:          req.Goal,
+		Frequency:     req.Frequency,
+		DurationWeeks: req.DurationWeeks,
+		IsActive:      true,
+	}
+
+	if err := s.routineRepo.Create(ctx, routine); err != nil {
+		return nil, fmt.Errorf("error creating routine: %w", err)
+	}
+
+	// Crear días y ejercicios
+	for _, aiDay := range aiRoutine.Days {
+		day := &domain.RoutineDay{
+			RoutineID: routine.ID,
+			DayNumber: aiDay.DayNumber,
+			DayName:   aiDay.DayName,
+		}
+
+		if err := s.routineRepo.CreateDay(ctx, day); err != nil {
+			return nil, fmt.Errorf("error creating routine day: %w", err)
+		}
+
+		for i, aiEx := range aiDay.Exercises {
+			exercise := &domain.Exercise{
+				RoutineDayID: day.ID,
+				Name:         aiEx.Name,
+				Sets:         aiEx.Sets,
+				Reps:         aiEx.Reps,
+				RestSeconds:  aiEx.RestSeconds,
+				Order:        i + 1,
+				Notes:        aiEx.Notes,
 			}
 
 			if err := s.routineRepo.CreateExercise(ctx, exercise); err != nil {

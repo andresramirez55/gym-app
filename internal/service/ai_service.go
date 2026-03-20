@@ -13,6 +13,7 @@ import (
 
 type AIService interface {
 	GenerateRoutine(ctx context.Context, goal domain.FitnessGoal, frequency domain.Frequency) (*AIGeneratedRoutine, error)
+	ParseRoutineText(ctx context.Context, text string) (*AIGeneratedRoutine, error)
 }
 
 type aiService struct {
@@ -107,6 +108,105 @@ func (s *aiService) GenerateRoutine(ctx context.Context, goal domain.FitnessGoal
 	}
 
 	return &routine, nil
+}
+
+func (s *aiService) ParseRoutineText(ctx context.Context, text string) (*AIGeneratedRoutine, error) {
+	prompt := s.buildParsePrompt(text)
+
+	requestBody := map[string]interface{}{
+		"model": "claude-sonnet-4-5-20250929",
+		"max_tokens": 4096,
+		"messages": []map[string]string{
+			{
+				"role":    "user",
+				"content": prompt,
+			},
+		},
+	}
+
+	jsonData, err := json.Marshal(requestBody)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling request: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", "https://api.anthropic.com/v1/messages", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return nil, fmt.Errorf("error creating request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("x-api-key", s.apiKey)
+	req.Header.Set("anthropic-version", "2023-06-01")
+
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("error calling API: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("API error (status %d): %s", resp.StatusCode, string(body))
+	}
+
+	var apiResponse struct {
+		Content []struct {
+			Type string `json:"type"`
+			Text string `json:"text"`
+		} `json:"content"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&apiResponse); err != nil {
+		return nil, fmt.Errorf("error decoding response: %w", err)
+	}
+
+	if len(apiResponse.Content) == 0 {
+		return nil, fmt.Errorf("empty response from API")
+	}
+
+	var routine AIGeneratedRoutine
+	if err := json.Unmarshal([]byte(apiResponse.Content[0].Text), &routine); err != nil {
+		return nil, fmt.Errorf("error parsing AI response: %w", err)
+	}
+
+	return &routine, nil
+}
+
+func (s *aiService) buildParsePrompt(text string) string {
+	return fmt.Sprintf(`Eres un entrenador personal experto. Analiza la siguiente rutina de gimnasio y extrae su información en formato estructurado.
+
+RUTINA A ANALIZAR:
+%s
+
+Devuelve ÚNICAMENTE un JSON válido (sin markdown, sin explicaciones adicionales) con esta estructura exacta:
+
+{
+  "name": "Nombre de la rutina (extrae del texto o genera uno descriptivo)",
+  "description": "Breve descripción basada en el contenido (1-2 líneas)",
+  "days": [
+    {
+      "day_number": 1,
+      "day_name": "Nombre del día extraído del texto",
+      "exercises": [
+        {
+          "name": "Nombre del ejercicio",
+          "sets": 3,
+          "reps": "8-12",
+          "rest_seconds": 90,
+          "notes": "Cualquier nota adicional del ejercicio"
+        }
+      ]
+    }
+  ]
+}
+
+INSTRUCCIONES:
+- Si el texto usa formatos como "2x10 2x8 1x6", interpreta como series progresivas (ej: "2-6" sets, "6-10" reps)
+- Si hay un descanso global (ej: "descanso 90 seg"), aplícalo a todos los ejercicios que no tengan uno específico
+- Si no se especifica descanso, usa 60 segundos por defecto
+- Si el texto tiene formato poco convencional, haz tu mejor interpretación basada en patrones comunes de entrenamiento
+- Respeta el orden y agrupación de ejercicios por día
+- Si no hay nombre de rutina explícito, genera uno descriptivo basado en el contenido`, text)
 }
 
 func (s *aiService) buildPrompt(goal domain.FitnessGoal, frequency domain.Frequency) string {
