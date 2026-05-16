@@ -262,6 +262,17 @@ export default function HomeScreen({ navigation }: any) {
       routine.week_number > routine.duration_weeks // Pasaste de la última semana
     : false;
 
+  // Aviso cuando estás en el 75% del programa (sin haberlo completado)
+  const isRoutineNearingEnd = routine
+    ? routine.duration_weeks > 0 &&
+      !isRoutineCompleted &&
+      routine.week_number >= Math.ceil(routine.duration_weeks * 0.75)
+    : false;
+
+  const weeksLeft = routine
+    ? Math.max(0, routine.duration_weeks - routine.week_number + 1)
+    : 0;
+
   return (
     <>
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
@@ -359,6 +370,21 @@ export default function HomeScreen({ navigation }: any) {
                 >
                   <Text style={styles.completionButtonText}>✨ Generar nueva rutina</Text>
                 </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Nearing End Banner */}
+            {isRoutineNearingEnd && (
+              <View style={styles.nearingEndBanner}>
+                <Text style={styles.nearingEndIcon}>⏳</Text>
+                <View style={styles.nearingEndTextContainer}>
+                  <Text style={styles.nearingEndTitle}>
+                    {weeksLeft === 1 ? 'Última semana del programa' : `Quedan ${weeksLeft} semanas`}
+                  </Text>
+                  <Text style={styles.nearingEndText}>
+                    Los mejores entrenadores recomiendan cambiar de rutina cada 8-12 semanas para evitar el estancamiento. Empezá a pensar en tu próximo programa.
+                  </Text>
+                </View>
               </View>
             )}
 
@@ -1090,6 +1116,40 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  nearingEndBanner: {
+    backgroundColor: '#FFF8EC',
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 24,
+    borderWidth: 2,
+    borderColor: '#FF9500',
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 14,
+    shadowColor: '#FF9500',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  nearingEndIcon: {
+    fontSize: 32,
+    marginTop: 2,
+  },
+  nearingEndTextContainer: {
+    flex: 1,
+  },
+  nearingEndTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#B25000',
+    marginBottom: 6,
+  },
+  nearingEndText: {
+    fontSize: 13,
+    color: '#7A4A00',
+    lineHeight: 19,
   },
   // Modal de importación
   modalContainer: {

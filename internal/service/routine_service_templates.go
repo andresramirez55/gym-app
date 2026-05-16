@@ -39,12 +39,13 @@ func (s *routineServiceWithTemplates) GenerateRoutineForUser(ctx context.Context
 
 	// Crear rutina basada en el template
 	routine := &domain.Routine{
-		UserID:      req.UserID,
-		Name:        template.Name,
-		Description: template.Description,
-		Goal:        req.Goal,
-		Frequency:   req.Frequency,
-		IsActive:    true,
+		UserID:        req.UserID,
+		Name:          template.Name,
+		Description:   template.Description,
+		Goal:          req.Goal,
+		Frequency:     req.Frequency,
+		DurationWeeks: template.RecommendedDurationWeeks,
+		IsActive:      true,
 	}
 
 	if err := s.routineRepo.Create(ctx, routine); err != nil {

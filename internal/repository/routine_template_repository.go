@@ -6,11 +6,12 @@ import (
 )
 
 type RoutineTemplate struct {
-	ID          int64
-	Name        string
-	Description string
-	Goal        string
-	Frequency   int
+	ID                      int64
+	Name                    string
+	Description             string
+	Goal                    string
+	Frequency               int
+	RecommendedDurationWeeks int
 }
 
 type RoutineTemplateDay struct {
@@ -48,7 +49,7 @@ func NewRoutineTemplateRepository(db *sql.DB) RoutineTemplateRepository {
 
 func (r *routineTemplateRepository) GetRandomTemplate(ctx context.Context, goal string, frequency int) (*RoutineTemplate, error) {
 	query := `
-		SELECT id, name, description, goal, frequency
+		SELECT id, name, description, goal, frequency, recommended_duration_weeks
 		FROM routine_templates
 		WHERE goal = $1 AND frequency = $2
 		ORDER BY RANDOM()
@@ -62,6 +63,7 @@ func (r *routineTemplateRepository) GetRandomTemplate(ctx context.Context, goal 
 		&template.Description,
 		&template.Goal,
 		&template.Frequency,
+		&template.RecommendedDurationWeeks,
 	)
 
 	if err != nil {
@@ -74,7 +76,7 @@ func (r *routineTemplateRepository) GetRandomTemplate(ctx context.Context, goal 
 func (r *routineTemplateRepository) GetRandomTemplateExcluding(ctx context.Context, goal string, frequency int, excludeName string) (*RoutineTemplate, error) {
 	// Prefer a different template; if none available, fall back to any
 	query := `
-		SELECT id, name, description, goal, frequency
+		SELECT id, name, description, goal, frequency, recommended_duration_weeks
 		FROM routine_templates
 		WHERE goal = $1 AND frequency = $2
 		ORDER BY CASE WHEN name = $3 THEN 1 ELSE 0 END, RANDOM()
@@ -83,6 +85,7 @@ func (r *routineTemplateRepository) GetRandomTemplateExcluding(ctx context.Conte
 	template := &RoutineTemplate{}
 	err := r.db.QueryRowContext(ctx, query, goal, frequency, excludeName).Scan(
 		&template.ID, &template.Name, &template.Description, &template.Goal, &template.Frequency,
+		&template.RecommendedDurationWeeks,
 	)
 	if err != nil {
 		return nil, err
