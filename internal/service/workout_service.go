@@ -75,6 +75,7 @@ func (s *workoutService) LogWorkout(ctx context.Context, req *dto.LogWorkoutRequ
 				SetNumber:     set.SetNumber,
 				Weight:        set.Weight,
 				Reps:          set.Reps,
+				RIR:           set.RIR,
 			}
 
 			if err := s.workoutRepo.CreateSetLog(ctx, setLog); err != nil {
@@ -133,6 +134,7 @@ func (s *workoutService) GetWeightProgress(ctx context.Context, userID, exercise
 			Date:   log.CreatedAt.Format("2006-01-02"),
 			Weight: log.Weight,
 			Reps:   log.Reps,
+			RIR:    log.RIR,
 		})
 	}
 

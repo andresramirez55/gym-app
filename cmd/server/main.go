@@ -29,6 +29,12 @@ func main() {
 
 	log.Println("Connected to database successfully")
 
+	// Auto-apply lightweight additive migrations (idempotent, safe to run on every boot).
+	// Ver migrations/008_add_rir.sql - se mantiene ahí como referencia del cambio.
+	if _, err := db.Exec(`ALTER TABLE set_logs ADD COLUMN IF NOT EXISTS rir SMALLINT`); err != nil {
+		log.Fatal("Failed to run RIR migration:", err)
+	}
+
 	// Initialize repositories
 	userRepo := repository.NewUserRepository(db)
 	routineRepo := repository.NewRoutineRepository(db)

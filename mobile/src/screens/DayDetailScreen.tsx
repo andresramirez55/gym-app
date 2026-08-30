@@ -335,6 +335,7 @@ export default function DayDetailScreen({ route, navigation }: Props) {
     // Auto-fill inteligente: intentar pre-llenar con datos de última sesión
     let suggestedWeight = 0;
     let suggestedReps = 0;
+    let suggestedRir: number | undefined;
 
     if (exercise) {
       const lastSessionSets = lastSession[exercise.name];
@@ -343,6 +344,7 @@ export default function DayDetailScreen({ route, navigation }: Props) {
         const baseSet = lastSessionSets[0];
         suggestedWeight = baseSet.weight || 0;
         suggestedReps = baseSet.reps || 0;
+        suggestedRir = baseSet.rir;
 
         // Si está listo para progresar, sugerir incremento en peso
         if (progressionReady[exercise.name]?.ready) {
@@ -355,6 +357,7 @@ export default function DayDetailScreen({ route, navigation }: Props) {
       set_number: exerciseSets.length + 1,
       weight: suggestedWeight,
       reps: suggestedReps,
+      rir: suggestedRir,
     };
     setSets({ ...sets, [exerciseId]: [...exerciseSets, newSet] });
   };
@@ -372,8 +375,17 @@ export default function DayDetailScreen({ route, navigation }: Props) {
       set_number: exerciseSets.length + 1,
       weight: lastSet.weight,
       reps: lastSet.reps,
+      rir: lastSet.rir,
     };
     setSets({ ...sets, [exerciseId]: [...exerciseSets, newSet] });
+  };
+
+  const updateSetRir = (exerciseId: number, setIndex: number, rir: number) => {
+    const exerciseSets = [...(sets[exerciseId] || [])];
+    const current = exerciseSets[setIndex].rir;
+    // Tocar el mismo valor de nuevo lo deselecciona
+    exerciseSets[setIndex] = { ...exerciseSets[setIndex], rir: current === rir ? undefined : rir };
+    setSets({ ...sets, [exerciseId]: exerciseSets });
   };
 
   const quickIncrementWeight = (exerciseId: number, setIndex: number, amount: number) => {
@@ -557,9 +569,11 @@ export default function DayDetailScreen({ route, navigation }: Props) {
                   </View>
                   {lastSession[exercise.name] && (
                     <Text style={styles.lastSessionText}>
-                      Última vez: {lastSession[exercise.name].map(s =>
-                        s.weight > 0 ? `${s.weight}kg×${s.reps}` : `${s.reps} reps`
-                      ).join(' · ')}
+                      Última vez: {lastSession[exercise.name].map(s => {
+                        const base = s.weight > 0 ? `${s.weight}kg×${s.reps}` : `${s.reps} reps`;
+                        const rirText = s.rir !== undefined && s.rir !== null ? ` (RIR ${s.rir === 4 ? '4+' : s.rir})` : '';
+                        return base + rirText;
+                      }).join(' · ')}
                     </Text>
                   )}
                 </View>
@@ -651,6 +665,26 @@ export default function DayDetailScreen({ route, navigation }: Props) {
                           </TouchableOpacity>
                         )}
                       </View>
+
+                      {/* RIR (Reps in Reserve) selector */}
+                      {!isDone ? (
+                        <View style={styles.rirRow}>
+                          <Text style={styles.rirLabel}>RIR</Text>
+                          {[0, 1, 2, 3, 4].map((r) => (
+                            <TouchableOpacity
+                              key={r}
+                              style={[styles.rirChip, set.rir === r && styles.rirChipActive]}
+                              onPress={() => updateSetRir(exercise.id, index, r)}
+                            >
+                              <Text style={[styles.rirChipText, set.rir === r && styles.rirChipTextActive]}>
+                                {r === 4 ? '4+' : r}
+                              </Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      ) : (set.rir !== undefined && set.rir !== null) ? (
+                        <Text style={styles.rirDoneText}>RIR {set.rir === 4 ? '4+' : set.rir}</Text>
+                      ) : null}
                     </View>
                   ))}
                 </View>
@@ -1237,6 +1271,48 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 6,
+  },
+  rirRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingBottom: 8,
+    paddingLeft: 60,
+    gap: 6,
+  },
+  rirLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#8E8E93',
+    letterSpacing: 0.3,
+    marginRight: 2,
+  },
+  rirChip: {
+    width: 26,
+    height: 22,
+    borderRadius: 6,
+    backgroundColor: '#F2F2F7',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rirChipActive: {
+    backgroundColor: PRIMARY,
+  },
+  rirChipText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#6E6E73',
+  },
+  rirChipTextActive: {
+    color: 'white',
+  },
+  rirDoneText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#1C7A38',
+    paddingHorizontal: 12,
+    paddingLeft: 60,
+    paddingBottom: 8,
   },
   removeBtnText: {
     fontSize: 13,

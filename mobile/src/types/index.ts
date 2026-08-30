@@ -61,6 +61,7 @@ export interface SetLog {
   set_number: number;
   weight: number;
   reps: number;
+  rir?: number; // Reps in Reserve (0-4+), opcional
 }
 
 export interface ExerciseLog {

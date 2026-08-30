@@ -53,12 +53,12 @@ func (r *workoutRepository) CreateExerciseLog(ctx context.Context, log *domain.E
 
 func (r *workoutRepository) CreateSetLog(ctx context.Context, log *domain.SetLog) error {
 	query := `
-		INSERT INTO set_logs (exercise_log_id, set_number, weight, reps, created_at)
-		VALUES ($1, $2, $3, $4, NOW())
+		INSERT INTO set_logs (exercise_log_id, set_number, weight, reps, rir, created_at)
+		VALUES ($1, $2, $3, $4, $5, NOW())
 		RETURNING id, created_at
 	`
 	return r.db.QueryRowContext(ctx, query,
-		log.ExerciseLogID, log.SetNumber, log.Weight, log.Reps,
+		log.ExerciseLogID, log.SetNumber, log.Weight, log.Reps, log.RIR,
 	).Scan(&log.ID, &log.CreatedAt)
 }
 
@@ -114,7 +114,7 @@ func (r *workoutRepository) GetExerciseLogsByWorkoutID(ctx context.Context, work
 
 func (r *workoutRepository) GetSetLogsByExerciseLogID(ctx context.Context, exerciseLogID int64) ([]domain.SetLog, error) {
 	query := `
-		SELECT id, exercise_log_id, set_number, weight, reps, created_at
+		SELECT id, exercise_log_id, set_number, weight, reps, rir, created_at
 		FROM set_logs
 		WHERE exercise_log_id = $1
 		ORDER BY set_number
@@ -129,7 +129,7 @@ func (r *workoutRepository) GetSetLogsByExerciseLogID(ctx context.Context, exerc
 	for rows.Next() {
 		var log domain.SetLog
 		if err := rows.Scan(&log.ID, &log.ExerciseLogID, &log.SetNumber,
-			&log.Weight, &log.Reps, &log.CreatedAt); err != nil {
+			&log.Weight, &log.Reps, &log.RIR, &log.CreatedAt); err != nil {
 			return nil, err
 		}
 		logs = append(logs, log)
@@ -188,7 +188,7 @@ func (r *workoutRepository) DeleteAllWorkoutLogs(ctx context.Context, userID int
 
 func (r *workoutRepository) GetWeightHistoryByExercise(ctx context.Context, userID, exerciseID int64) ([]domain.SetLog, error) {
 	query := `
-		SELECT sl.id, sl.exercise_log_id, sl.set_number, sl.weight, sl.reps, sl.created_at
+		SELECT sl.id, sl.exercise_log_id, sl.set_number, sl.weight, sl.reps, sl.rir, sl.created_at
 		FROM set_logs sl
 		JOIN exercise_logs el ON el.id = sl.exercise_log_id
 		JOIN workout_logs wl ON wl.id = el.workout_log_id
@@ -205,7 +205,7 @@ func (r *workoutRepository) GetWeightHistoryByExercise(ctx context.Context, user
 	for rows.Next() {
 		var log domain.SetLog
 		if err := rows.Scan(&log.ID, &log.ExerciseLogID, &log.SetNumber,
-			&log.Weight, &log.Reps, &log.CreatedAt); err != nil {
+			&log.Weight, &log.Reps, &log.RIR, &log.CreatedAt); err != nil {
 			return nil, err
 		}
 		logs = append(logs, log)

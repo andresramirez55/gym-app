@@ -18,6 +18,7 @@ type SetLogDTO struct {
 	SetNumber int     `json:"set_number" binding:"required"`
 	Weight    float64 `json:"weight" binding:"required"` // in kg
 	Reps      int     `json:"reps" binding:"required"`
+	RIR       *int    `json:"rir,omitempty"` // Reps in Reserve, opcional (0-4+)
 }
 
 type WorkoutLogResponse struct {
@@ -44,4 +45,5 @@ type WeightHistoryPoint struct {
 	Date   string  `json:"date"`
 	Weight float64 `json:"weight"`
 	Reps   int     `json:"reps"`
+	RIR    *int    `json:"rir,omitempty"`
 }

@@ -174,6 +174,7 @@ export default function HistoryScreen() {
                           <View key={setIndex} style={styles.setPill}>
                             <Text style={styles.setPillText}>
                               {set.weight > 0 ? `${set.weight}kg` : ''}{set.weight > 0 && set.reps > 0 ? ' × ' : ''}{set.reps > 0 ? `${set.reps}` : ''}
+                              {set.rir !== undefined && set.rir !== null ? ` (RIR ${set.rir === 4 ? '4+' : set.rir})` : ''}
                             </Text>
                           </View>
                         ))}

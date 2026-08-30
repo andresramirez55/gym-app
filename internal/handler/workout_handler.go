@@ -69,6 +69,7 @@ func (h *WorkoutHandler) GetWorkoutHistory(w http.ResponseWriter, r *http.Reques
 					SetNumber: set.SetNumber,
 					Weight:    set.Weight,
 					Reps:      set.Reps,
+					RIR:       set.RIR,
 				}
 			}
 

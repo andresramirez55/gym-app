@@ -34,5 +34,6 @@ type SetLog struct {
 	SetNumber     int       `json:"set_number" db:"set_number"`
 	Weight        float64   `json:"weight" db:"weight"` // in kg
 	Reps          int       `json:"reps" db:"reps"`
+	RIR           *int      `json:"rir,omitempty" db:"rir"` // Reps in Reserve, opcional
 	CreatedAt     time.Time `json:"created_at" db:"created_at"`
 }
