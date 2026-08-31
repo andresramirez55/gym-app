@@ -272,10 +272,14 @@ HISTORIAL COMPLETO DE ENTRENAMIENTOS DE ESTE CICLO (pesos y reps reales, serie p
 
 Analizá el progreso real: qué ejercicios subieron de peso de forma consistente, cuáles se estancaron (mismo peso/reps varias sesiones seguidas), y si hay señales de fatiga acumulada (retrocesos de peso al final del ciclo). Con eso, diseñá el próximo bloque de entrenamiento, igual que haría un entrenador que revisa los números antes de armar el siguiente ciclo: pesos de arranque basados en los datos reales (no genéricos), y ajustes puntuales donde el bloque anterior se estancó.
 
+Si un ejercicio estuvo estancado varias semanas seguidas sin explicación de fatiga, no te limites a "subí el peso" - proponé un reemplazo concreto (otro ejercicio para el mismo grupo muscular) y explicá por qué lo cambiarías. Priorizá cambios puntuales y justificados por sobre reescribir toda la rutina de cero.
+
+Esto es una conversación, no una respuesta única: si después de ver esta propuesta el usuario te pide ajustes (cambiar un ejercicio, el orden de los días, el volumen de algo puntual), respondé con el mismo JSON completo actualizado - es lo que va a pegar de vuelta en la app.
+
 Devolvé ÚNICAMENTE un JSON válido (sin markdown, sin explicaciones adicionales) con esta estructura exacta:
 
 {
-  "diagnosis": "2-4 oraciones: qué progresó bien, qué se estancó, y qué cambia en este bloque nuevo",
+  "diagnosis": "2-4 oraciones: qué progresó bien, qué se estancó, y qué cambia en este bloque nuevo (si reemplazaste algún ejercicio, decí cuál y por qué)",
   "name": "Nombre de la rutina nueva",
   "duration_weeks": 12,
   "days": [

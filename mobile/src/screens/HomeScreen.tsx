@@ -103,7 +103,7 @@ export default function HomeScreen({ navigation }: any) {
 
   const loadPendingSuggestion = async () => {
     try {
-      const suggestion = await suggestionApi.getPending(user!.id);
+      const suggestion = await suggestionApi.getCurrent(user!.id);
       setPendingSuggestion(suggestion);
     } catch (_) {
       setPendingSuggestion(null);
@@ -369,20 +369,24 @@ export default function HomeScreen({ navigation }: any) {
               </View>
             </LinearGradient>
 
-            {/* Routine Suggestion Banner (Claude ya armó la propuesta) */}
+            {/* Routine Suggestion Banner */}
             {pendingSuggestion ? (
               <View style={styles.completionBanner}>
                 <Text style={styles.completionIcon}>🎓</Text>
                 <Text style={styles.completionTitle}>¡Tu ciclo terminó!</Text>
                 <Text style={styles.completionText}>
-                  Claude armó una sugerencia para tu próxima rutina, basada en tu progreso real de este bloque.
+                  {pendingSuggestion.status === 'awaiting_input'
+                    ? 'Tenemos listo el prompt para pedirle a Claude tu próxima rutina, basado en tu progreso real.'
+                    : 'Claude ya armó una sugerencia para tu próxima rutina.'}
                 </Text>
                 <TouchableOpacity
                   style={styles.completionButton}
                   onPress={() => navigation.navigate('RoutineSuggestion')}
                   activeOpacity={0.85}
                 >
-                  <Text style={styles.completionButtonText}>🎓 Ver sugerencia de Claude</Text>
+                  <Text style={styles.completionButtonText}>
+                    {pendingSuggestion.status === 'awaiting_input' ? '🎓 Consultar a Claude' : '🎓 Ver sugerencia de Claude'}
+                  </Text>
                 </TouchableOpacity>
               </View>
             ) : (

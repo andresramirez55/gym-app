@@ -115,11 +115,16 @@ export interface RoutineSuggestionPreview {
   days: RoutineSuggestionDay[];
 }
 
+// "awaiting_input": todavía no se pegó la respuesta de Claude - viene con `prompt`.
+// "pending": ya se pegó la respuesta - viene con `diagnosis` y `routine`, lista para revisar.
+export type SuggestionState = 'awaiting_input' | 'pending';
+
 export interface RoutineSuggestion {
   id: number;
-  routine_id: number;
-  diagnosis: string;
-  routine: RoutineSuggestionPreview;
+  status: SuggestionState;
+  prompt?: string;
+  diagnosis?: string;
+  routine?: RoutineSuggestionPreview;
   created_at: string;
 }
 

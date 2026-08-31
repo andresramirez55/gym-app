@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  TextInput,
 } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
 import { suggestionApi } from '../services/api';
@@ -19,6 +20,7 @@ export default function RoutineSuggestionScreen({ navigation }: any) {
   const [suggestion, setSuggestion] = useState<RoutineSuggestion | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [answerText, setAnswerText] = useState('');
 
   useEffect(() => {
     loadSuggestion();
@@ -26,12 +28,34 @@ export default function RoutineSuggestionScreen({ navigation }: any) {
 
   const loadSuggestion = async () => {
     try {
-      const data = await suggestionApi.getPending(user!.id);
+      const data = await suggestionApi.getCurrent(user!.id);
       setSuggestion(data);
     } catch (error) {
       setSuggestion(null);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSubmitAnswer = async () => {
+    if (!suggestion) return;
+    if (!answerText.trim()) {
+      Alert.alert('Pegá la respuesta', 'Pegá acá el JSON completo que te devolvió Claude.');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const updated = await suggestionApi.submitAnswer(suggestion.id, answerText.trim());
+      setSuggestion(updated);
+      setAnswerText('');
+    } catch (error: any) {
+      Alert.alert(
+        'No pude interpretar la respuesta',
+        error?.response?.data?.error ||
+          'Revisá que hayas pegado el JSON completo que te devolvió Claude, sin texto extra alrededor.'
+      );
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -64,7 +88,7 @@ export default function RoutineSuggestionScreen({ navigation }: any) {
 
   const handleDismiss = () => {
     if (!suggestion) return;
-    Alert.alert('¿Descartar sugerencia?', 'Podés seguir con tu rutina actual y generar una nueva más adelante.', [
+    Alert.alert('¿Descartar?', 'Podés seguir con tu rutina actual y pedir la sugerencia más adelante.', [
       { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Descartar',
@@ -101,55 +125,111 @@ export default function RoutineSuggestionScreen({ navigation }: any) {
     );
   }
 
+  const hasReview = suggestion.status === 'pending' && !!suggestion.routine;
+
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       <View style={styles.content}>
         <View style={styles.diagnosisCard}>
-          <Text style={styles.diagnosisTitle}>🎓 Diagnóstico del ciclo</Text>
-          <Text style={styles.diagnosisText}>{suggestion.diagnosis}</Text>
+          <Text style={styles.diagnosisTitle}>🎓 Tu ciclo terminó</Text>
+          <Text style={styles.diagnosisText}>
+            {hasReview
+              ? '¿Algo no te cierra? Volvé a la conversación con Claude, pedile los cambios que quieras, y pegá la respuesta corregida acá abajo - se actualiza la vista sin perder nada. Recién cuando estés conforme, activala.'
+              : 'Mantené presionado el texto de abajo para copiarlo, pegalo en Claude (la app, la web, o el chat donde estés hablando con Claude), y pegá su respuesta completa más abajo. Si algo no te cierra podés seguir pidiendo cambios en esa misma conversación antes de pegar la versión final.'}
+          </Text>
         </View>
 
-        <Text style={styles.routineName}>{suggestion.routine.name}</Text>
-        <Text style={styles.routineMeta}>
-          {suggestion.routine.duration_weeks} semanas · {suggestion.routine.frequency} días/semana
-        </Text>
+        <Text style={styles.sectionLabel}>PROMPT PARA COPIAR</Text>
+        <TextInput
+          style={styles.promptBox}
+          value={suggestion.prompt}
+          editable={false}
+          multiline
+          selectTextOnFocus
+        />
 
-        {suggestion.routine.days.map((day, dayIndex) => (
-          <View key={dayIndex} style={styles.dayCard}>
-            <Text style={styles.dayName}>{day.day_name}</Text>
-            {day.exercises.map((ex, exIndex) => (
-              <View key={exIndex} style={styles.exerciseRow}>
-                <View style={styles.exerciseHeader}>
-                  <Text style={styles.exerciseName}>{ex.name}</Text>
-                  <Text style={styles.exerciseSets}>{ex.sets} × {ex.reps}</Text>
-                </View>
-                {ex.notes ? <Text style={styles.exerciseNotes}>💡 {ex.notes}</Text> : null}
+        <Text style={styles.sectionLabel}>
+          {hasReview ? 'PEGAR UNA RESPUESTA CORREGIDA (opcional)' : 'RESPUESTA DE CLAUDE'}
+        </Text>
+        <TextInput
+          style={styles.answerBox}
+          value={answerText}
+          onChangeText={setAnswerText}
+          placeholder="Pegá acá el JSON completo que te devolvió Claude..."
+          placeholderTextColor="#C0C0C8"
+          multiline
+        />
+
+        <TouchableOpacity
+          style={[styles.button, styles.secondaryButton, { marginBottom: hasReview ? 24 : 0 }]}
+          onPress={handleSubmitAnswer}
+          disabled={submitting}
+          activeOpacity={0.85}
+        >
+          {submitting && !hasReview ? (
+            <ActivityIndicator size="small" color={PRIMARY} />
+          ) : (
+            <Text style={styles.secondaryButtonText}>
+              {hasReview ? '🔄 Actualizar con esta respuesta' : 'Enviar respuesta'}
+            </Text>
+          )}
+        </TouchableOpacity>
+
+        {hasReview && suggestion.routine && (
+          <>
+            <Text style={styles.routineName}>{suggestion.routine.name}</Text>
+            <Text style={styles.routineMeta}>
+              {suggestion.routine.duration_weeks} semanas · {suggestion.routine.frequency} días/semana
+            </Text>
+
+            {suggestion.routine.days.map((day, dayIndex) => (
+              <View key={dayIndex} style={styles.dayCard}>
+                <Text style={styles.dayName}>{day.day_name}</Text>
+                {day.exercises.map((ex, exIndex) => (
+                  <View key={exIndex} style={styles.exerciseRow}>
+                    <View style={styles.exerciseHeader}>
+                      <Text style={styles.exerciseName}>{ex.name}</Text>
+                      <Text style={styles.exerciseSets}>{ex.sets} × {ex.reps}</Text>
+                    </View>
+                    {ex.notes ? <Text style={styles.exerciseNotes}>💡 {ex.notes}</Text> : null}
+                  </View>
+                ))}
               </View>
             ))}
-          </View>
-        ))}
 
-        <View style={styles.actionsRow}>
+            <View style={styles.actionsRow}>
+              <TouchableOpacity
+                style={[styles.button, styles.dismissButton]}
+                onPress={handleDismiss}
+                disabled={submitting}
+              >
+                <Text style={styles.dismissButtonText}>Descartar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.button, styles.applyButton]}
+                onPress={handleApply}
+                disabled={submitting}
+                activeOpacity={0.85}
+              >
+                {submitting ? (
+                  <ActivityIndicator size="small" color="white" />
+                ) : (
+                  <Text style={styles.applyButtonText}>✨ Activar rutina</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </>
+        )}
+
+        {!hasReview && (
           <TouchableOpacity
-            style={[styles.button, styles.dismissButton]}
+            style={[styles.button, styles.dismissButton, { marginTop: 16 }]}
             onPress={handleDismiss}
             disabled={submitting}
           >
             <Text style={styles.dismissButtonText}>Descartar</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.button, styles.applyButton]}
-            onPress={handleApply}
-            disabled={submitting}
-            activeOpacity={0.85}
-          >
-            {submitting ? (
-              <ActivityIndicator size="small" color="white" />
-            ) : (
-              <Text style={styles.applyButtonText}>✨ Activar rutina</Text>
-            )}
-          </TouchableOpacity>
-        </View>
+        )}
       </View>
     </ScrollView>
   );
@@ -198,6 +278,50 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#3C3C43',
     lineHeight: 20,
+  },
+  sectionLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#8E8E93',
+    letterSpacing: 0.5,
+    marginBottom: 8,
+  },
+  promptBox: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+    padding: 14,
+    fontSize: 12,
+    color: '#3C3C43',
+    lineHeight: 18,
+    minHeight: 160,
+    maxHeight: 280,
+    marginBottom: 20,
+    fontFamily: 'monospace',
+  },
+  answerBox: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+    padding: 14,
+    fontSize: 13,
+    color: '#1C1C1E',
+    lineHeight: 18,
+    minHeight: 120,
+    marginBottom: 12,
+    textAlignVertical: 'top',
+  },
+  secondaryButton: {
+    backgroundColor: '#F0F0FF',
+    borderWidth: 1.5,
+    borderColor: PRIMARY,
+  },
+  secondaryButtonText: {
+    color: PRIMARY,
+    fontSize: 15,
+    fontWeight: '700',
   },
   routineName: {
     fontSize: 20,

@@ -130,8 +130,12 @@ func (s *suggestionService) SubmitAnswer(ctx context.Context, suggestionID int64
 	if err != nil {
 		return nil, fmt.Errorf("suggestion not found: %w", err)
 	}
-	if suggestion.Status != domain.SuggestionAwaitingInput {
-		return nil, fmt.Errorf("suggestion is not awaiting input (status: %s)", suggestion.Status)
+	// Se acepta tanto la primera respuesta (awaiting_input) como una corrección
+	// sobre una ya revisada (pending) - así el usuario puede volver a Claude,
+	// pedir cambios ("no me gusta este ejercicio", "cambiá el orden"), y pegar
+	// la versión corregida las veces que quiera antes de aplicarla.
+	if suggestion.Status != domain.SuggestionAwaitingInput && suggestion.Status != domain.SuggestionPending {
+		return nil, fmt.Errorf("suggestion is not editable (status: %s)", suggestion.Status)
 	}
 
 	var aiResult AIRoutineSuggestion

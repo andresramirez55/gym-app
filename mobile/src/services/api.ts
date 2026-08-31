@@ -106,16 +106,24 @@ export const userApi = {
   },
 };
 
-// Routine suggestion API (sugerencia automática de Claude al completar un ciclo)
+// Routine suggestion API (prompt manual para pedirle a Claude la próxima rutina)
 export const suggestionApi = {
-  getPending: async (userId: number): Promise<RoutineSuggestion | null> => {
+  getCurrent: async (userId: number): Promise<RoutineSuggestion | null> => {
     if (USE_MOCK_API) return null;
     try {
       const response = await api.get<RoutineSuggestion>(`/api/routines/suggestions?user_id=${userId}`);
       return response.data;
     } catch (error) {
-      return null; // 404 = no hay sugerencia pendiente
+      return null; // 404 = no hay ninguna sugerencia activa
     }
+  },
+
+  submitAnswer: async (suggestionId: number, answer: string): Promise<RoutineSuggestion> => {
+    const response = await api.post<RoutineSuggestion>(
+      `/api/routines/suggestions/submit?id=${suggestionId}`,
+      { answer }
+    );
+    return response.data;
   },
 
   apply: async (suggestionId: number): Promise<{ routine_id: number }> => {
