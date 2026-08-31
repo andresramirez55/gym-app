@@ -3,6 +3,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import * as Updates from 'expo-updates';
+import { registerForPushNotifications } from './src/utils/pushNotifications';
 
 import LoginScreen from './src/screens/LoginScreen';
 import HomeScreen from './src/screens/HomeScreen';
@@ -10,11 +11,18 @@ import DayDetailScreen from './src/screens/DayDetailScreen';
 import HistoryScreen from './src/screens/HistoryScreen';
 import ProgressScreen from './src/screens/ProgressScreen';
 import CalendarScreen from './src/screens/CalendarScreen';
+import RoutineSuggestionScreen from './src/screens/RoutineSuggestionScreen';
 
 const Stack = createNativeStackNavigator();
 
 function AppNavigator() {
   const { user, loading } = useAuth();
+
+  useEffect(() => {
+    if (user) {
+      registerForPushNotifications(user.id);
+    }
+  }, [user]);
 
   if (loading) {
     return null; // Podrías mostrar un splash screen aquí
@@ -51,6 +59,11 @@ function AppNavigator() {
               name="Calendar"
               component={CalendarScreen}
               options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="RoutineSuggestion"
+              component={RoutineSuggestionScreen}
+              options={{ headerShown: true, title: 'Sugerencia de Claude' }}
             />
           </>
         )}

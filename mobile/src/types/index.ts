@@ -92,6 +92,37 @@ export interface WorkoutLog {
   notes?: string;
 }
 
+// Routine suggestion types (sugerencia automática de Claude al completar un ciclo)
+export interface RoutineSuggestionExercise {
+  name: string;
+  sets: number;
+  reps: string;
+  rest_seconds: number;
+  notes?: string;
+}
+
+export interface RoutineSuggestionDay {
+  day_name: string;
+  exercises: RoutineSuggestionExercise[];
+}
+
+export interface RoutineSuggestionPreview {
+  user_id: number;
+  name: string;
+  goal: string;
+  duration_weeks: number;
+  frequency: number;
+  days: RoutineSuggestionDay[];
+}
+
+export interface RoutineSuggestion {
+  id: number;
+  routine_id: number;
+  diagnosis: string;
+  routine: RoutineSuggestionPreview;
+  created_at: string;
+}
+
 export interface WeightProgressEntry {
   date: string;
   max_weight: number;

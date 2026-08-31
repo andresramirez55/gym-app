@@ -15,8 +15,8 @@ import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { AnimatedCircularProgress } from 'react-native-circular-progress';
 import { useAuth } from '../contexts/AuthContext';
-import { routineApi, workoutApi } from '../services/api';
-import type { Routine, WorkoutLog } from '../types';
+import { routineApi, workoutApi, suggestionApi } from '../services/api';
+import type { Routine, WorkoutLog, RoutineSuggestion } from '../types';
 
 const PRIMARY = '#5E5CE6';
 
@@ -71,6 +71,7 @@ export default function HomeScreen({ navigation }: any) {
     days: number[]; // 0=Mon .. 6=Sun
   } | null>(null);
   const [weekCompletedDays, setWeekCompletedDays] = useState<Map<number, Date[]>>(new Map());
+  const [pendingSuggestion, setPendingSuggestion] = useState<RoutineSuggestion | null>(null);
   const [importModalVisible, setImportModalVisible] = useState(false);
   const [importText, setImportText] = useState('');
   const [importGoal, setImportGoal] = useState('gain_muscle');
@@ -83,18 +84,31 @@ export default function HomeScreen({ navigation }: any) {
       loadRoutine();
       loadWeekStats();
       loadWeekCompletedDays();
+      loadPendingSuggestion();
     }
   }, [user]);
 
   // Refrescar datos cuando la pantalla recibe focus
+  // (por ejemplo, al volver de RoutineSuggestionScreen después de aplicar/descartar)
   useFocusEffect(
     React.useCallback(() => {
       if (user) {
         loadWeekCompletedDays();
         loadWeekStats();
+        loadRoutine();
+        loadPendingSuggestion();
       }
     }, [user])
   );
+
+  const loadPendingSuggestion = async () => {
+    try {
+      const suggestion = await suggestionApi.getPending(user!.id);
+      setPendingSuggestion(suggestion);
+    } catch (_) {
+      setPendingSuggestion(null);
+    }
+  };
 
   const loadWeekCompletedDays = async () => {
     try {
@@ -355,22 +369,40 @@ export default function HomeScreen({ navigation }: any) {
               </View>
             </LinearGradient>
 
-            {/* Routine Completion Banner */}
-            {isRoutineCompleted && (
+            {/* Routine Suggestion Banner (Claude ya armó la propuesta) */}
+            {pendingSuggestion ? (
               <View style={styles.completionBanner}>
-                <Text style={styles.completionIcon}>🎉</Text>
-                <Text style={styles.completionTitle}>¡Rutina completada!</Text>
+                <Text style={styles.completionIcon}>🎓</Text>
+                <Text style={styles.completionTitle}>¡Tu ciclo terminó!</Text>
                 <Text style={styles.completionText}>
-                  Completaste todas las semanas de tu rutina actual. ¿Listo para generar una nueva?
+                  Claude armó una sugerencia para tu próxima rutina, basada en tu progreso real de este bloque.
                 </Text>
                 <TouchableOpacity
                   style={styles.completionButton}
-                  onPress={handleGenerateRoutine}
+                  onPress={() => navigation.navigate('RoutineSuggestion')}
                   activeOpacity={0.85}
                 >
-                  <Text style={styles.completionButtonText}>✨ Generar nueva rutina</Text>
+                  <Text style={styles.completionButtonText}>🎓 Ver sugerencia de Claude</Text>
                 </TouchableOpacity>
               </View>
+            ) : (
+              /* Routine Completion Banner (fallback si no hay sugerencia automática) */
+              isRoutineCompleted && (
+                <View style={styles.completionBanner}>
+                  <Text style={styles.completionIcon}>🎉</Text>
+                  <Text style={styles.completionTitle}>¡Rutina completada!</Text>
+                  <Text style={styles.completionText}>
+                    Completaste todas las semanas de tu rutina actual. ¿Listo para generar una nueva?
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.completionButton}
+                    onPress={handleGenerateRoutine}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={styles.completionButtonText}>✨ Generar nueva rutina</Text>
+                  </TouchableOpacity>
+                </View>
+              )
             )}
 
             {/* Nearing End Banner */}

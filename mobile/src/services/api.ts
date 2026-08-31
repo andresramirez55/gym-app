@@ -8,6 +8,7 @@ import type {
   LogWorkoutRequest,
   WorkoutLog,
   WeightProgress,
+  RoutineSuggestion,
 } from '../types';
 import {
   mockUserApi,
@@ -97,6 +98,33 @@ export const userApi = {
   delete: async (id: number): Promise<void> => {
     if (USE_MOCK_API) return mockUserApi.delete(id);
     await api.delete(`/api/users?id=${id}`);
+  },
+
+  registerPushToken: async (userId: number, pushToken: string): Promise<void> => {
+    if (USE_MOCK_API) return;
+    await api.put(`/api/users/push-token?user_id=${userId}`, { push_token: pushToken });
+  },
+};
+
+// Routine suggestion API (sugerencia automática de Claude al completar un ciclo)
+export const suggestionApi = {
+  getPending: async (userId: number): Promise<RoutineSuggestion | null> => {
+    if (USE_MOCK_API) return null;
+    try {
+      const response = await api.get<RoutineSuggestion>(`/api/routines/suggestions?user_id=${userId}`);
+      return response.data;
+    } catch (error) {
+      return null; // 404 = no hay sugerencia pendiente
+    }
+  },
+
+  apply: async (suggestionId: number): Promise<{ routine_id: number }> => {
+    const response = await api.post(`/api/routines/suggestions/apply?id=${suggestionId}`);
+    return response.data;
+  },
+
+  dismiss: async (suggestionId: number): Promise<void> => {
+    await api.post(`/api/routines/suggestions/dismiss?id=${suggestionId}`);
   },
 };
 
