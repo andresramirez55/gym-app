@@ -70,6 +70,14 @@ type ExerciseDTO struct {
 	Notes       string `json:"notes,omitempty"`
 }
 
+type RoutineSuggestionResponse struct {
+	ID        int64                `json:"id"`
+	RoutineID int64                `json:"routine_id"`
+	Diagnosis string               `json:"diagnosis"`
+	Routine   CreateRoutineRequest `json:"routine"`
+	CreatedAt string               `json:"created_at"`
+}
+
 type UpdateExerciseRequest struct {
 	Name        string `json:"name" binding:"required"`
 	Sets        int    `json:"sets"`

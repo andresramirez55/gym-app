@@ -13,6 +13,8 @@ type UserRepository interface {
 	GetByEmail(ctx context.Context, email string) (*domain.User, error)
 	Update(ctx context.Context, user *domain.User) error
 	Delete(ctx context.Context, id int64) error
+	UpdatePushToken(ctx context.Context, userID int64, token string) error
+	GetPushToken(ctx context.Context, userID int64) (string, error)
 }
 
 type userRepository struct {
@@ -84,4 +86,18 @@ func (r *userRepository) Delete(ctx context.Context, id int64) error {
 	query := `DELETE FROM users WHERE id = $1`
 	_, err := r.db.ExecContext(ctx, query, id)
 	return err
+}
+
+func (r *userRepository) UpdatePushToken(ctx context.Context, userID int64, token string) error {
+	_, err := r.db.ExecContext(ctx, `UPDATE users SET push_token = $1 WHERE id = $2`, token, userID)
+	return err
+}
+
+func (r *userRepository) GetPushToken(ctx context.Context, userID int64) (string, error) {
+	var token sql.NullString
+	err := r.db.QueryRowContext(ctx, `SELECT push_token FROM users WHERE id = $1`, userID).Scan(&token)
+	if err != nil {
+		return "", err
+	}
+	return token.String, nil
 }

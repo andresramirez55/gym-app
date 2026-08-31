@@ -12,6 +12,7 @@ type WorkoutRepository interface {
 	CreateExerciseLog(ctx context.Context, log *domain.ExerciseLog) error
 	CreateSetLog(ctx context.Context, log *domain.SetLog) error
 	GetWorkoutLogsByUserID(ctx context.Context, userID int64, limit int) ([]domain.WorkoutLog, error)
+	GetWorkoutLogsByRoutineID(ctx context.Context, routineID int64) ([]domain.WorkoutLog, error)
 	GetExerciseLogsByWorkoutID(ctx context.Context, workoutID int64) ([]domain.ExerciseLog, error)
 	GetSetLogsByExerciseLogID(ctx context.Context, exerciseLogID int64) ([]domain.SetLog, error)
 	GetWeightHistoryByExercise(ctx context.Context, userID, exerciseID int64) ([]domain.SetLog, error)
@@ -71,6 +72,31 @@ func (r *workoutRepository) GetWorkoutLogsByUserID(ctx context.Context, userID i
 		LIMIT $2
 	`
 	rows, err := r.db.QueryContext(ctx, query, userID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var logs []domain.WorkoutLog
+	for rows.Next() {
+		var log domain.WorkoutLog
+		if err := rows.Scan(&log.ID, &log.UserID, &log.RoutineID, &log.RoutineDayID,
+			&log.CompletedAt, &log.Duration, &log.Notes, &log.CreatedAt); err != nil {
+			return nil, err
+		}
+		logs = append(logs, log)
+	}
+	return logs, rows.Err()
+}
+
+func (r *workoutRepository) GetWorkoutLogsByRoutineID(ctx context.Context, routineID int64) ([]domain.WorkoutLog, error) {
+	query := `
+		SELECT id, user_id, routine_id, routine_day_id, completed_at, duration, notes, created_at
+		FROM workout_logs
+		WHERE routine_id = $1
+		ORDER BY completed_at ASC
+	`
+	rows, err := r.db.QueryContext(ctx, query, routineID)
 	if err != nil {
 		return nil, err
 	}

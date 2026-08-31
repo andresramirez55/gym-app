@@ -14,6 +14,16 @@ import (
 type AIService interface {
 	GenerateRoutine(ctx context.Context, goal domain.FitnessGoal, frequency domain.Frequency) (*AIGeneratedRoutine, error)
 	ParseRoutineText(ctx context.Context, text string) (*AIGeneratedRoutine, error)
+	AnalyzeRoutineCompletion(ctx context.Context, routine *domain.Routine, logs []domain.WorkoutLog) (*AIRoutineSuggestion, error)
+}
+
+// AIRoutineSuggestion es la respuesta de Claude al cerrar un ciclo: diagnóstico
+// del bloque que terminó + la propuesta de la próxima rutina.
+type AIRoutineSuggestion struct {
+	Diagnosis     string         `json:"diagnosis"`
+	Name          string         `json:"name"`
+	DurationWeeks int            `json:"duration_weeks"`
+	Days          []AIRoutineDay `json:"days"`
 }
 
 type aiService struct {
@@ -28,9 +38,9 @@ type AIGeneratedRoutine struct {
 }
 
 type AIRoutineDay struct {
-	DayNumber int           `json:"day_number"`
-	DayName   string        `json:"day_name"`
-	Exercises []AIExercise  `json:"exercises"`
+	DayNumber int          `json:"day_number"`
+	DayName   string       `json:"day_name"`
+	Exercises []AIExercise `json:"exercises"`
 }
 
 type AIExercise struct {
@@ -52,7 +62,7 @@ func (s *aiService) GenerateRoutine(ctx context.Context, goal domain.FitnessGoal
 	prompt := s.buildPrompt(goal, frequency)
 
 	requestBody := map[string]interface{}{
-		"model": "claude-sonnet-4-5-20250929",
+		"model":      "claude-sonnet-5",
 		"max_tokens": 4096,
 		"messages": []map[string]string{
 			{
@@ -114,7 +124,7 @@ func (s *aiService) ParseRoutineText(ctx context.Context, text string) (*AIGener
 	prompt := s.buildParsePrompt(text)
 
 	requestBody := map[string]interface{}{
-		"model": "claude-sonnet-4-5-20250929",
+		"model":      "claude-sonnet-5",
 		"max_tokens": 4096,
 		"messages": []map[string]string{
 			{
@@ -170,6 +180,111 @@ func (s *aiService) ParseRoutineText(ctx context.Context, text string) (*AIGener
 	}
 
 	return &routine, nil
+}
+
+func (s *aiService) AnalyzeRoutineCompletion(ctx context.Context, routine *domain.Routine, logs []domain.WorkoutLog) (*AIRoutineSuggestion, error) {
+	prompt, err := s.buildAnalysisPrompt(routine, logs)
+	if err != nil {
+		return nil, fmt.Errorf("error building analysis prompt: %w", err)
+	}
+
+	requestBody := map[string]interface{}{
+		"model":      "claude-sonnet-5",
+		"max_tokens": 8192,
+		"messages": []map[string]string{
+			{
+				"role":    "user",
+				"content": prompt,
+			},
+		},
+	}
+
+	jsonData, err := json.Marshal(requestBody)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling request: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", "https://api.anthropic.com/v1/messages", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return nil, fmt.Errorf("error creating request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("x-api-key", s.apiKey)
+	req.Header.Set("anthropic-version", "2023-06-01")
+
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("error calling API: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("API error (status %d): %s", resp.StatusCode, string(body))
+	}
+
+	var apiResponse struct {
+		Content []struct {
+			Type string `json:"type"`
+			Text string `json:"text"`
+		} `json:"content"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&apiResponse); err != nil {
+		return nil, fmt.Errorf("error decoding response: %w", err)
+	}
+
+	if len(apiResponse.Content) == 0 {
+		return nil, fmt.Errorf("empty response from API")
+	}
+
+	var suggestion AIRoutineSuggestion
+	if err := json.Unmarshal([]byte(apiResponse.Content[0].Text), &suggestion); err != nil {
+		return nil, fmt.Errorf("error parsing AI response: %w", err)
+	}
+
+	return &suggestion, nil
+}
+
+func (s *aiService) buildAnalysisPrompt(routine *domain.Routine, logs []domain.WorkoutLog) (string, error) {
+	routineJSON, err := json.Marshal(routine)
+	if err != nil {
+		return "", err
+	}
+	logsJSON, err := json.Marshal(logs)
+	if err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf(`Sos un entrenador personal experto revisando el ciclo de entrenamiento que un usuario acaba de completar.
+
+RUTINA QUE ACABA DE TERMINAR (incluye días y ejercicios):
+%s
+
+HISTORIAL COMPLETO DE ENTRENAMIENTOS DE ESTE CICLO (pesos y reps reales, serie por serie):
+%s
+
+Analizá el progreso real: qué ejercicios subieron de peso de forma consistente, cuáles se estancaron (mismo peso/reps varias sesiones seguidas), y si hay señales de fatiga acumulada (retrocesos de peso al final del ciclo). Con eso, diseñá el próximo bloque de entrenamiento, igual que haría un entrenador que revisa los números antes de armar el siguiente ciclo: pesos de arranque basados en los datos reales (no genéricos), y ajustes puntuales donde el bloque anterior se estancó.
+
+Devolvé ÚNICAMENTE un JSON válido (sin markdown, sin explicaciones adicionales) con esta estructura exacta:
+
+{
+  "diagnosis": "2-4 oraciones: qué progresó bien, qué se estancó, y qué cambia en este bloque nuevo",
+  "name": "Nombre de la rutina nueva",
+  "duration_weeks": 12,
+  "days": [
+    {
+      "day_number": 1,
+      "day_name": "Nombre del día",
+      "exercises": [
+        {"name": "...", "sets": 4, "reps": "8-12", "rest_seconds": 90, "notes": "peso de arranque sugerido + regla de progresión, basado en los pesos reales del historial"}
+      ]
+    }
+  ]
+}
+
+Mantené %d días de entrenamiento (la misma cantidad que la rutina actual) salvo que el estancamiento amerite un cambio de split. Los nombres deben estar en español.`, string(routineJSON), string(logsJSON), routine.Frequency), nil
 }
 
 func (s *aiService) buildParsePrompt(text string) string {

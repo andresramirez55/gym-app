@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/andresramirez/gym-app/internal/domain"
@@ -19,14 +20,16 @@ type WorkoutService interface {
 }
 
 type workoutService struct {
-	workoutRepo  repository.WorkoutRepository
-	routineRepo  repository.RoutineRepository
+	workoutRepo       repository.WorkoutRepository
+	routineRepo       repository.RoutineRepository
+	suggestionService SuggestionService // opcional: nil si el feature no está wireado
 }
 
-func NewWorkoutService(workoutRepo repository.WorkoutRepository, routineRepo repository.RoutineRepository) WorkoutService {
+func NewWorkoutService(workoutRepo repository.WorkoutRepository, routineRepo repository.RoutineRepository, suggestionService SuggestionService) WorkoutService {
 	return &workoutService{
-		workoutRepo:  workoutRepo,
-		routineRepo:  routineRepo,
+		workoutRepo:       workoutRepo,
+		routineRepo:       routineRepo,
+		suggestionService: suggestionService,
 	}
 }
 
@@ -84,7 +87,40 @@ func (s *workoutService) LogWorkout(ctx context.Context, req *dto.LogWorkoutRequ
 		}
 	}
 
+	s.maybeTriggerRoutineSuggestion(req.UserID, req.RoutineID)
+
 	return workoutLog, nil
+}
+
+// maybeTriggerRoutineSuggestion revisa si el entrenamiento recién logueado
+// completó el ciclo de la rutina activa, y si es así dispara la consulta a
+// Claude en background (no debe bloquear ni fallar el log del entrenamiento).
+func (s *workoutService) maybeTriggerRoutineSuggestion(userID, routineID int64) {
+	if s.suggestionService == nil {
+		return
+	}
+
+	routine, err := s.routineRepo.GetByID(context.Background(), routineID)
+	if err != nil {
+		return
+	}
+
+	count, err := s.workoutRepo.CountWorkoutsByRoutineID(context.Background(), routineID)
+	if err != nil {
+		return
+	}
+
+	threshold := int(routine.Frequency) * routine.DurationWeeks
+	if threshold <= 0 || count < threshold {
+		return // todavía no completó el ciclo
+	}
+
+	go func() {
+		ctx := context.Background()
+		if err := s.suggestionService.CheckAndGenerate(ctx, userID, routineID); err != nil {
+			log.Printf("error generating routine suggestion for user %d routine %d: %v", userID, routineID, err)
+		}
+	}()
 }
 
 func (s *workoutService) GetWorkoutHistory(ctx context.Context, userID int64, limit int) ([]domain.WorkoutLog, error) {

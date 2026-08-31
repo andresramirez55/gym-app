@@ -15,6 +15,7 @@ type UserService interface {
 	GetUserByEmail(ctx context.Context, email string) (*domain.User, error)
 	UpdateUser(ctx context.Context, id int64, req *dto.UpdateUserRequest) (*domain.User, error)
 	DeleteUser(ctx context.Context, id int64) error
+	UpdatePushToken(ctx context.Context, id int64, pushToken string) error
 }
 
 type userService struct {
@@ -83,6 +84,13 @@ func (s *userService) UpdateUser(ctx context.Context, id int64, req *dto.UpdateU
 	}
 
 	return user, nil
+}
+
+func (s *userService) UpdatePushToken(ctx context.Context, id int64, pushToken string) error {
+	if err := s.userRepo.UpdatePushToken(ctx, id, pushToken); err != nil {
+		return fmt.Errorf("error updating push token: %w", err)
+	}
+	return nil
 }
 
 func (s *userService) DeleteUser(ctx context.Context, id int64) error {

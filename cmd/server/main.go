@@ -30,9 +30,31 @@ func main() {
 	log.Println("Connected to database successfully")
 
 	// Auto-apply lightweight additive migrations (idempotent, safe to run on every boot).
-	// Ver migrations/008_add_rir.sql - se mantiene ahí como referencia del cambio.
+	// Ver migrations/008_add_rir.sql y 009_routine_suggestions.sql - se mantienen ahí como referencia.
 	if _, err := db.Exec(`ALTER TABLE set_logs ADD COLUMN IF NOT EXISTS rir SMALLINT`); err != nil {
 		log.Fatal("Failed to run RIR migration:", err)
+	}
+	if _, err := db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS push_token TEXT`); err != nil {
+		log.Fatal("Failed to run push_token migration:", err)
+	}
+	if _, err := db.Exec(`
+		CREATE TABLE IF NOT EXISTS routine_suggestions (
+			id BIGSERIAL PRIMARY KEY,
+			user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			routine_id BIGINT NOT NULL REFERENCES routines(id) ON DELETE CASCADE,
+			diagnosis TEXT NOT NULL,
+			suggested_routine JSONB NOT NULL,
+			status VARCHAR(20) NOT NULL DEFAULT 'pending',
+			created_at TIMESTAMP NOT NULL DEFAULT NOW()
+		)
+	`); err != nil {
+		log.Fatal("Failed to run routine_suggestions migration:", err)
+	}
+	if _, err := db.Exec(`CREATE INDEX IF NOT EXISTS idx_routine_suggestions_user_id ON routine_suggestions(user_id)`); err != nil {
+		log.Fatal("Failed to create routine_suggestions index:", err)
+	}
+	if _, err := db.Exec(`CREATE INDEX IF NOT EXISTS idx_routine_suggestions_status ON routine_suggestions(status)`); err != nil {
+		log.Fatal("Failed to create routine_suggestions status index:", err)
 	}
 
 	// Initialize repositories
@@ -40,9 +62,11 @@ func main() {
 	routineRepo := repository.NewRoutineRepository(db)
 	routineTemplateRepo := repository.NewRoutineTemplateRepository(db)
 	workoutRepo := repository.NewWorkoutRepository(db)
+	suggestionRepo := repository.NewRoutineSuggestionRepository(db)
 
 	// Initialize services
 	userService := service.NewUserService(userRepo)
+	pushService := service.NewPushService()
 
 	// Initialize AI service (optional - only if CLAUDE_API_KEY is set)
 	var aiService service.AIService
@@ -54,12 +78,26 @@ func main() {
 	}
 
 	routineService := service.NewRoutineServiceWithTemplates(routineRepo, routineTemplateRepo, workoutRepo, aiService)
-	workoutService := service.NewWorkoutService(workoutRepo, routineRepo)
+
+	// El servicio de sugerencias solo tiene sentido si hay AI service configurado.
+	var suggestionService service.SuggestionService
+	if aiService != nil {
+		suggestionService = service.NewSuggestionService(suggestionRepo, routineRepo, workoutRepo, userRepo, aiService, pushService, routineService)
+		log.Println("Suggestion service initialized - automatic routine-cycle suggestions available")
+	} else {
+		log.Println("CLAUDE_API_KEY not set - automatic routine suggestions will not be available")
+	}
+
+	workoutService := service.NewWorkoutService(workoutRepo, routineRepo, suggestionService)
 
 	// Initialize handlers
 	userHandler := handler.NewUserHandler(userService)
 	routineHandler := handler.NewRoutineHandler(routineService)
 	workoutHandler := handler.NewWorkoutHandler(workoutService)
+	var suggestionHandler *handler.SuggestionHandler
+	if suggestionService != nil {
+		suggestionHandler = handler.NewSuggestionHandler(suggestionService)
+	}
 
 	// Setup routes
 	mux := http.NewServeMux()
@@ -117,6 +155,51 @@ func main() {
 	mux.HandleFunc("/api/routines/active", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
 			routineHandler.GetActiveRoutine(w, r)
+		} else {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
+	// Routine suggestion routes (sugerencias automáticas al completar un ciclo)
+	mux.HandleFunc("/api/routines/suggestions", func(w http.ResponseWriter, r *http.Request) {
+		if suggestionHandler == nil {
+			http.Error(w, "Feature not available (CLAUDE_API_KEY not set)", http.StatusServiceUnavailable)
+			return
+		}
+		if r.Method == http.MethodGet {
+			suggestionHandler.GetPending(w, r)
+		} else {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
+	mux.HandleFunc("/api/routines/suggestions/apply", func(w http.ResponseWriter, r *http.Request) {
+		if suggestionHandler == nil {
+			http.Error(w, "Feature not available (CLAUDE_API_KEY not set)", http.StatusServiceUnavailable)
+			return
+		}
+		if r.Method == http.MethodPost {
+			suggestionHandler.Apply(w, r)
+		} else {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
+	mux.HandleFunc("/api/routines/suggestions/dismiss", func(w http.ResponseWriter, r *http.Request) {
+		if suggestionHandler == nil {
+			http.Error(w, "Feature not available (CLAUDE_API_KEY not set)", http.StatusServiceUnavailable)
+			return
+		}
+		if r.Method == http.MethodPost {
+			suggestionHandler.Dismiss(w, r)
+		} else {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
+	mux.HandleFunc("/api/users/push-token", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPut {
+			userHandler.RegisterPushToken(w, r)
 		} else {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}

@@ -3,16 +3,20 @@ package dto
 import "github.com/andresramirez/gym-app/internal/domain"
 
 type CreateUserRequest struct {
-	Name      string              `json:"name" binding:"required"`
-	Email     string              `json:"email" binding:"required,email"`
-	Goal      domain.FitnessGoal  `json:"goal" binding:"required"`
-	Frequency domain.Frequency    `json:"frequency" binding:"required"`
+	Name      string             `json:"name" binding:"required"`
+	Email     string             `json:"email" binding:"required,email"`
+	Goal      domain.FitnessGoal `json:"goal" binding:"required"`
+	Frequency domain.Frequency   `json:"frequency" binding:"required"`
 }
 
 type UpdateUserRequest struct {
 	Name      *string             `json:"name,omitempty"`
 	Goal      *domain.FitnessGoal `json:"goal,omitempty"`
 	Frequency *domain.Frequency   `json:"frequency,omitempty"`
+}
+
+type RegisterPushTokenRequest struct {
+	PushToken string `json:"push_token" binding:"required"`
 }
 
 type UserResponse struct {
