@@ -56,6 +56,9 @@ func main() {
 	if _, err := db.Exec(`CREATE INDEX IF NOT EXISTS idx_routine_suggestions_status ON routine_suggestions(status)`); err != nil {
 		log.Fatal("Failed to create routine_suggestions status index:", err)
 	}
+	if _, err := db.Exec(`ALTER TABLE routine_suggestions ADD COLUMN IF NOT EXISTS prompt TEXT NOT NULL DEFAULT ''`); err != nil {
+		log.Fatal("Failed to run suggestion prompt migration:", err)
+	}
 
 	// Initialize repositories
 	userRepo := repository.NewUserRepository(db)
@@ -79,14 +82,9 @@ func main() {
 
 	routineService := service.NewRoutineServiceWithTemplates(routineRepo, routineTemplateRepo, workoutRepo, aiService)
 
-	// El servicio de sugerencias solo tiene sentido si hay AI service configurado.
-	var suggestionService service.SuggestionService
-	if aiService != nil {
-		suggestionService = service.NewSuggestionService(suggestionRepo, routineRepo, workoutRepo, userRepo, aiService, pushService, routineService)
-		log.Println("Suggestion service initialized - automatic routine-cycle suggestions available")
-	} else {
-		log.Println("CLAUDE_API_KEY not set - automatic routine suggestions will not be available")
-	}
+	// El flujo de sugerencias es manual (arma el prompt, no llama a ninguna API),
+	// así que no depende de CLAUDE_API_KEY - siempre está disponible.
+	suggestionService := service.NewSuggestionService(suggestionRepo, routineRepo, workoutRepo, userRepo, pushService, routineService)
 
 	workoutService := service.NewWorkoutService(workoutRepo, routineRepo, suggestionService)
 
@@ -94,10 +92,7 @@ func main() {
 	userHandler := handler.NewUserHandler(userService)
 	routineHandler := handler.NewRoutineHandler(routineService)
 	workoutHandler := handler.NewWorkoutHandler(workoutService)
-	var suggestionHandler *handler.SuggestionHandler
-	if suggestionService != nil {
-		suggestionHandler = handler.NewSuggestionHandler(suggestionService)
-	}
+	suggestionHandler := handler.NewSuggestionHandler(suggestionService)
 
 	// Setup routes
 	mux := http.NewServeMux()
@@ -160,24 +155,25 @@ func main() {
 		}
 	})
 
-	// Routine suggestion routes (sugerencias automáticas al completar un ciclo)
+	// Routine suggestion routes (sugerencia manual al completar un ciclo: se
+	// arma el prompt para copiar/pegar en Claude, no llama a ninguna API paga)
 	mux.HandleFunc("/api/routines/suggestions", func(w http.ResponseWriter, r *http.Request) {
-		if suggestionHandler == nil {
-			http.Error(w, "Feature not available (CLAUDE_API_KEY not set)", http.StatusServiceUnavailable)
-			return
-		}
 		if r.Method == http.MethodGet {
-			suggestionHandler.GetPending(w, r)
+			suggestionHandler.GetCurrent(w, r)
+		} else {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
+	mux.HandleFunc("/api/routines/suggestions/submit", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			suggestionHandler.SubmitAnswer(w, r)
 		} else {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}
 	})
 
 	mux.HandleFunc("/api/routines/suggestions/apply", func(w http.ResponseWriter, r *http.Request) {
-		if suggestionHandler == nil {
-			http.Error(w, "Feature not available (CLAUDE_API_KEY not set)", http.StatusServiceUnavailable)
-			return
-		}
 		if r.Method == http.MethodPost {
 			suggestionHandler.Apply(w, r)
 		} else {
@@ -186,10 +182,6 @@ func main() {
 	})
 
 	mux.HandleFunc("/api/routines/suggestions/dismiss", func(w http.ResponseWriter, r *http.Request) {
-		if suggestionHandler == nil {
-			http.Error(w, "Feature not available (CLAUDE_API_KEY not set)", http.StatusServiceUnavailable)
-			return
-		}
 		if r.Method == http.MethodPost {
 			suggestionHandler.Dismiss(w, r)
 		} else {

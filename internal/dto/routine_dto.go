@@ -70,12 +70,20 @@ type ExerciseDTO struct {
 	Notes       string `json:"notes,omitempty"`
 }
 
-type RoutineSuggestionResponse struct {
-	ID        int64                `json:"id"`
-	RoutineID int64                `json:"routine_id"`
-	Diagnosis string               `json:"diagnosis"`
-	Routine   CreateRoutineRequest `json:"routine"`
-	CreatedAt string               `json:"created_at"`
+// SuggestionStatusResponse cubre los dos estados que puede ver la app:
+// "awaiting_input" (mostrar Prompt para copiar + input para pegar la respuesta)
+// o "pending" (mostrar Diagnosis + Routine con botones Aplicar/Descartar).
+type SuggestionStatusResponse struct {
+	ID        int64                 `json:"id"`
+	Status    string                `json:"status"`
+	Prompt    string                `json:"prompt,omitempty"`
+	Diagnosis string                `json:"diagnosis,omitempty"`
+	Routine   *CreateRoutineRequest `json:"routine,omitempty"`
+	CreatedAt string                `json:"created_at"`
+}
+
+type SubmitSuggestionAnswerRequest struct {
+	Answer string `json:"answer" binding:"required"`
 }
 
 type UpdateExerciseRequest struct {

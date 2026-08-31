@@ -183,7 +183,7 @@ func (s *aiService) ParseRoutineText(ctx context.Context, text string) (*AIGener
 }
 
 func (s *aiService) AnalyzeRoutineCompletion(ctx context.Context, routine *domain.Routine, logs []domain.WorkoutLog) (*AIRoutineSuggestion, error) {
-	prompt, err := s.buildAnalysisPrompt(routine, logs)
+	prompt, err := BuildRoutineAnalysisPrompt(routine, logs)
 	if err != nil {
 		return nil, fmt.Errorf("error building analysis prompt: %w", err)
 	}
@@ -247,7 +247,12 @@ func (s *aiService) AnalyzeRoutineCompletion(ctx context.Context, routine *domai
 	return &suggestion, nil
 }
 
-func (s *aiService) buildAnalysisPrompt(routine *domain.Routine, logs []domain.WorkoutLog) (string, error) {
+// BuildRoutineAnalysisPrompt arma el prompt de diagnóstico + próxima rutina a
+// partir de datos reales. No depende de ninguna API key ni hace llamadas de
+// red - es texto puro, pensado para copiarlo y pegarlo directamente en Claude
+// (o para usarlo con AIService.AnalyzeRoutineCompletion si se prefiere que el
+// backend consulte la API automáticamente).
+func BuildRoutineAnalysisPrompt(routine *domain.Routine, logs []domain.WorkoutLog) (string, error) {
 	routineJSON, err := json.Marshal(routine)
 	if err != nil {
 		return "", err
